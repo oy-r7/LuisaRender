@@ -17,19 +17,19 @@ using namespace luisa::compute;
 class Grouped final : public Environment {
 
 private:
-    luisa::vector<const Environment*> environments;
+    luisa::vector<const Environment *> environments;
 
 public:
     Grouped(Scene *scene, const SceneNodeDesc *desc) noexcept
         : Environment{scene, desc} {
         auto env_node_list = desc->property_node_list("environments");
         environments.clear();
-        for(auto &item: env_node_list) {
+        for (auto &item : env_node_list) {
             environments.emplace_back(scene->load_environment(item));
         }
     }
     [[nodiscard]] bool is_black() const noexcept override {
-        for(auto &item: environments) {
+        for (auto &item : environments) {
             if (!item->is_black()) {
                 return false;
             }
@@ -56,14 +56,14 @@ public:
         auto scale = 1.f / _envs.size();
         auto world_to_env = transpose(transform_to_world());
         auto wi_local = normalize(world_to_env * wi);
-        auto L = SampledSpectrum{swl.dimension()};
+        auto L = SampledSpectrum{swl.dimension(), 0.f};
         auto pdf = def(0.f);
-        for(auto &item: _envs) {
+        for (auto &item : _envs) {
             auto eval = item->evaluate(wi_local, swl, time);
-            L += scale * eval.L;
-            pdf += scale * eval.pdf;
+            L += eval.L;
+            pdf += eval.pdf;
         }
-        return {.L = L, .pdf = pdf};
+        return {.L = L, .pdf = scale * pdf};
     }
 
     [[nodiscard]] Environment::Sample sample(const SampledWavelengths &swl,
@@ -72,9 +72,10 @@ public:
         auto u = make_float2(u_in);
         auto scale = 1.f / _envs.size();
         auto sample = Environment::Sample::zero(swl.dimension());
-        auto sample_id = cast<int>(floor(u.x * static_cast<float>(_envs.size())));
-        u.x = fract(u.x * static_cast<float>(_envs.size())); // Remapped
-        $switch (sample_id) {
+        auto sample_id = clamp(cast<int>(floor(u.x * static_cast<float>(_envs.size()))),
+                               0, static_cast<int>(_envs.size() - 1));
+        u.x = fract(u.x * static_cast<float>(_envs.size()));// Remapped
+        $switch(sample_id) {
             for (auto i = 0; i < _envs.size(); i++) {
                 $case(i) {
                     sample = _envs[i]->sample(swl, time, u);
@@ -82,15 +83,14 @@ public:
             }
             $default { unreachable(); };
         };
-        auto L = SampledSpectrum{swl.dimension()};
-        auto pdf = def(0.f);
-        for(auto &item: _envs){
-            auto eval_item = item->evaluate(sample.wi, swl, time);
-            L += scale * eval_item.L;
-            pdf += scale * eval_item.pdf;
+        for (auto i = 0; i < _envs.size(); i++) {
+            $if(sample_id != i) {
+                auto eval_item = _envs[i]->evaluate(sample.wi, swl, time);
+                sample.eval.L += eval_item.L;
+                sample.eval.pdf += eval_item.pdf;
+            };
         }
-        sample.eval.L = L;
-        sample.eval.pdf = pdf;
+        sample.eval.pdf *= scale;
         sample.wi = normalize(transform_to_world() * sample.wi);
         return sample;
     }
@@ -99,7 +99,7 @@ public:
 luisa::unique_ptr<Environment::Instance> Grouped::build(
     Pipeline &pipeline, CommandBuffer &command_buffer) const noexcept {
     luisa::vector<luisa::unique_ptr<Instance>> envs;
-    for(auto &item: environments) {
+    for (auto &item : environments) {
         envs.emplace_back(item->build(pipeline, command_buffer));
     }
     return luisa::make_unique<GroupedInstance>(pipeline, this, std::move(envs));
