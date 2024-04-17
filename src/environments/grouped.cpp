@@ -78,19 +78,19 @@ public:
             for (auto i = 0; i < _envs.size(); i++) {
                 $case(i) {
                     sample = _envs[i]->sample(swl, time, u);
-                    auto L = SampledSpectrum{swl.dimension()};
-                    auto pdf = def(0.f);
-                    for(auto &item: _envs){
-                        auto eval_item = item->evaluate(sample.wi, swl, time);
-                        L += scale * eval_item.L;
-                        pdf += scale * eval_item.pdf;
-                    }
-                    sample.eval.L = L;
-                    sample.eval.pdf = pdf;
                 };
             }
             $default { unreachable(); };
         };
+        auto L = SampledSpectrum{swl.dimension()};
+        auto pdf = def(0.f);
+        for(auto &item: _envs){
+            auto eval_item = item->evaluate(sample.wi, swl, time);
+            L += scale * eval_item.L;
+            pdf += scale * eval_item.pdf;
+        }
+        sample.eval.L = L;
+        sample.eval.pdf = pdf;
         sample.wi = normalize(transform_to_world() * sample.wi);
         return sample;
     }
