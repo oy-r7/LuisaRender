@@ -211,9 +211,8 @@ void MixSurfaceInstance::populate_closure(Surface::Closure *closure_in, const In
     _b->populate_closure(closure->b(), it, wo, eta_i);
 }
 
-using NormalMapMixSurface = NormalMapWrapper<
-    MixSurface, MixSurfaceInstance>;
+using NormalMapOpacityMixSurface = NormalMapWrapper<OpacitySurfaceWrapper<MixSurface, MixSurfaceInstance>>;
 
 }// namespace luisa::render
 
-LUISA_RENDER_MAKE_SCENE_NODE_PLUGIN(luisa::render::NormalMapMixSurface)
+LUISA_RENDER_MAKE_SCENE_NODE_PLUGIN(luisa::render::NormalMapOpacityMixSurface)

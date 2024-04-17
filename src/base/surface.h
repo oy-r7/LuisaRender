@@ -170,14 +170,20 @@ public:
     private:
         const Texture::Instance *_opacity;
 
+    private:
+        [[nodiscard]] auto _decide_alpha_channel() const noexcept {
+            return _opacity == nullptr || _opacity->node()->channels() < 4u ? 0u : 3u;
+        }
+
     public:
         Instance(BaseInstance &&base, const Texture::Instance *opacity) noexcept
             : BaseInstance{std::move(base)}, _opacity{opacity} {}
 
         [[nodiscard]] bool maybe_non_opaque() const noexcept override {
             if (BaseInstance::maybe_non_opaque()) { return true; }
+            auto c = this->_decide_alpha_channel();
             return _opacity != nullptr &&
-                   _opacity->node()->evaluate_static().value_or(make_float4(0.f)).x < 1.f;
+                   _opacity->node()->evaluate_static().value_or(make_float4(0.f))[c] < 1.f;
         }
 
         [[nodiscard]] luisa::optional<Float> evaluate_opacity(const Interaction &it,
@@ -185,7 +191,8 @@ public:
                                                               Expr<float> time) const noexcept override {
             if (!maybe_non_opaque()) { return luisa::nullopt; }
             auto base_alpha = BaseInstance::evaluate_opacity(it, swl, time).value_or(1.f);
-            return base_alpha * _opacity->evaluate(it, swl, time).x;
+            auto c = this->_decide_alpha_channel();
+            return base_alpha * _opacity->evaluate(it, swl, time)[c];
         }
     };
 
