@@ -31,8 +31,8 @@ public:
             v.emplace_back(0.f);
         } else if (v.size() > 4u) [[unlikely]] {
             LUISA_WARNING(
-                "Too many values (count = {}) for ConstantTexture. "
-                "Additional values will be discarded. [{}]",
+                "Too many channels (count = {}) for ConstantTexture. "
+                "Additional channels will be discarded. [{}]",
                 v.size(), desc->source_location().string());
             v.resize(4u);
         }
