@@ -141,15 +141,17 @@ private:
         auto encoding = texture->encoding();
         auto scale = texture->scale();
         if (encoding == ImageTexture::Encoding::SRGB) {
+            auto rgb = rgba.xyz();
             auto linear = ite(
-                rgba <= 0.04045f,
-                rgba * (1.0f / 12.92f),
-                pow((rgba + 0.055f) * (1.0f / 1.055f), 2.4f));
-            return make_float4(scale * linear);
+                rgb <= 0.04045f,
+                rgb * (1.0f / 12.92f),
+                pow((rgb + 0.055f) * (1.0f / 1.055f), 2.4f));
+            return make_float4(scale * linear, rgba.w);
         }
         if (encoding == ImageTexture::Encoding::GAMMA) {
+            auto rgb = rgba.xyz();
             auto gamma = texture->gamma();
-            return scale * pow(rgba, gamma);
+            return make_float4(scale * pow(rgb, gamma), rgba.w);
         }
         return scale * rgba;
     }
