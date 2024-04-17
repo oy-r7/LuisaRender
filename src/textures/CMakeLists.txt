@@ -3,7 +3,7 @@ luisa_render_add_plugin(constant CATEGORY texture SOURCES constant.cpp)
 luisa_render_add_plugin(image CATEGORY texture SOURCES image.cpp)
 luisa_render_add_plugin(swizzle CATEGORY texture SOURCES swizzle.cpp)
 luisa_render_add_plugin(scale CATEGORY texture SOURCES scale.cpp)
-luisa_render_add_plugin(concat CATEGORY texture SOURCES concat.cpp)
+luisa_render_add_plugin(multiply CATEGORY texture SOURCES multiply.cpp)
 luisa_render_add_plugin(checkerboard CATEGORY texture SOURCES checkerboard.cpp)
 
 # sky texture precomputation
