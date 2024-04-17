@@ -2,6 +2,8 @@ add_library(luisa-render-textures INTERFACE)
 luisa_render_add_plugin(constant CATEGORY texture SOURCES constant.cpp)
 luisa_render_add_plugin(image CATEGORY texture SOURCES image.cpp)
 luisa_render_add_plugin(swizzle CATEGORY texture SOURCES swizzle.cpp)
+luisa_render_add_plugin(scale CATEGORY texture SOURCES scale.cpp)
+luisa_render_add_plugin(concat CATEGORY texture SOURCES concat.cpp)
 luisa_render_add_plugin(checkerboard CATEGORY texture SOURCES checkerboard.cpp)
 
 # sky texture precomputation
@@ -12,3 +14,6 @@ set_target_properties(luisa-render-texture-sky-precompute PROPERTIES WINDOWS_EXP
 # Nishita sky texture
 luisa_render_add_plugin(nishitasky CATEGORY texture SOURCES nishita_sky.cpp)
 target_link_libraries(luisa-render-texture-nishitasky PRIVATE luisa-render-texture-sky-precompute)
+
+# bump to normal
+luisa_render_add_plugin(bump2normal CATEGORY texture SOURCES bump2normal.cpp)
