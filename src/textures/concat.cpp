@@ -81,7 +81,7 @@ public:
                     case 1u: s[index++] = v.x; break;
                     case 2u: s[index] = v.x; s[index + 1u] = v.y; index += 2u; break;
                     case 3u: s[index] = v.x; s[index + 1u] = v.y; s[index + 2u] = v.z; index += 3u; break;
-                    case 4u: s[index] = v.x; s[index + 1u] = v.y; s[index + 2u] = v.z; s[index + 3u] = v.w; break;
+                    case 4u: s[index] = v.x; s[index + 1u] = v.y; s[index + 2u] = v.z; s[index + 3u] = v.w; index += 4u; break;
                     default: LUISA_ERROR_WITH_LOCATION("Unreachable");
                 }
             }
@@ -111,7 +111,6 @@ public:
     [[nodiscard]] Float4 evaluate(const Interaction &it,
                                   const SampledWavelengths &swl,
                                   Expr<float> time) const noexcept override {
-        // TODO: incorrect implementation
         auto s = def(make_float4(0.f));
         auto index = 0u;
         for (auto i = 0u; i < _sub_textures.size() - 1; i++) {
@@ -131,7 +130,7 @@ public:
                 case 1u: s[index++] = v.x; break;
                 case 2u: s[index] = v.x; s[index + 1u] = v.y; index += 2u; break;
                 case 3u: s[index] = v.x; s[index + 1u] = v.y; s[index + 2u] = v.z; index += 3u; break;
-                case 4u: s[index] = v.x; s[index + 1u] = v.y; s[index + 2u] = v.z; s[index + 3u] = v.w; break;
+                case 4u: s[index] = v.x; s[index + 1u] = v.y; s[index + 2u] = v.z; s[index + 3u] = v.w; index += 4u; break;
                 default: LUISA_ERROR_WITH_LOCATION("Unreachable");
             }
         }
