@@ -12,8 +12,7 @@ namespace luisa::render {
 inline Pipeline::Pipeline(Device &device) noexcept
     : _device{device},
       _bindless_array{device.create_bindless_array(bindless_array_capacity)},
-      _general_buffer_arena{luisa::make_unique<BufferArena>(device, 16_M)},
-      _printer{luisa::make_unique<compute::Printer>(device)} {}
+      _general_buffer_arena{luisa::make_unique<BufferArena>(device, 16_M)} {}
 
 Pipeline::~Pipeline() noexcept = default;
 
@@ -46,7 +45,6 @@ luisa::unique_ptr<Pipeline> Pipeline::create(Device &device, Stream &stream, con
     auto pipeline = luisa::make_unique<Pipeline>(device);
     pipeline->_transform_matrices.resize(transform_matrix_buffer_size);
     pipeline->_transform_matrix_buffer = device.create_buffer<float4x4>(transform_matrix_buffer_size);
-    stream << pipeline->printer().reset();
     auto initial_time = std::numeric_limits<float>::max();
     for (auto c : scene.cameras()) {
         if (c->shutter_span().x < initial_time) {

@@ -773,12 +773,14 @@ void MegakernelWaveFrontInstance::_render_one_camera(
             };
             sync_block();
         };
+#ifndef NDEBUG
         $if(count == count_limit) {
-            pipeline().printer().info("block_id{},thread_id {}, loop not break! local:{}, global:{}",block_x(),thread_x(), rem_local[0], rem_global[0]);
+            device_log("block_id{},thread_id {}, loop not break! local:{}, global:{}",block_x(),thread_x(), rem_local[0], rem_global[0]);
             $if(thread_x() < (uint)KERNEL_COUNT){
-                pipeline().printer().info("work rem: id {}, size {}", thread_x(), work_counter[thread_x()]);
+                device_log("work rem: id {}, size {}", thread_x(), work_counter[thread_x()]);
             };
 		};
+#endif
     });
     auto clear_global_shader = compile_async<1>(device, [&]() noexcept {
         auto dispatch_id = dispatch_x();
@@ -815,7 +817,6 @@ void MegakernelWaveFrontInstance::_render_one_camera(
                        << commit();
         LUISA_ASSERT(launch_size % render_shader.get().block_size().x == 0u, "");
         command_buffer << render_shader.get()(sample_count, host_sample_count, shutter_spp, time, s.point.weight).dispatch(launch_size);
-        command_buffer << pipeline().printer().retrieve();
         command_buffer << synchronize();
         shutter_spp += s.spp;
     }

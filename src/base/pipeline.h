@@ -45,7 +45,6 @@ using compute::Image;
 using compute::Mesh;
 using compute::PixelStorage;
 using compute::Polymorphic;
-using compute::Printer;
 using compute::Ray;
 using compute::Resource;
 using compute::Triangle;
@@ -94,7 +93,6 @@ private:
     Buffer<float4x4> _transform_matrix_buffer;
     luisa::unordered_map<luisa::string, uint> _named_ids;
     // other things
-    luisa::unique_ptr<Printer> _printer;
     float _initial_time{};
     bool _any_dynamic_transform{false};
     bool _any_non_opaque_surface{false};
@@ -214,8 +212,6 @@ public:
     [[nodiscard]] const PhaseFunction::Instance *build_phasefunction(CommandBuffer &command_buffer, const PhaseFunction *phasefunction) noexcept;
     bool update(CommandBuffer &command_buffer, float time) noexcept;
     void render(Stream &stream) noexcept;
-    [[nodiscard]] auto &printer() noexcept { return *_printer; }
-    [[nodiscard]] auto &printer() const noexcept { return *_printer; }
     [[nodiscard]] uint named_id(luisa::string_view name) const noexcept;
     template<typename T, typename I>
     [[nodiscard]] auto buffer(I &&i) const noexcept { return _bindless_array->buffer<T>(std::forward<I>(i)); }

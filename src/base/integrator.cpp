@@ -57,7 +57,6 @@ void ProgressiveIntegrator::Instance::_render_one_camera(
 
     auto pixel_count = resolution.x * resolution.y;
     sampler()->reset(command_buffer, resolution, pixel_count, spp);
-    command_buffer << pipeline().printer().reset();
     command_buffer << compute::synchronize();
 
     LUISA_INFO(
@@ -92,9 +91,6 @@ void ProgressiveIntegrator::Instance::_render_one_camera(
         for (auto i = 0u; i < s.spp; i++) {
             command_buffer << render(sample_id++, s.point.time, s.point.weight)
                                   .dispatch(resolution);
-            if (auto &&p = pipeline().printer(); !p.empty()) {
-                command_buffer << p.retrieve();
-            }
             dispatch_count++;
             if (camera->film()->show(command_buffer)) { dispatch_count = 0u; }
             auto dispatches_per_commit = 4u;

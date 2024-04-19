@@ -393,7 +393,6 @@ protected:
         //TODO: use sampler right
         uint add_x = (photon_per_iter + resolution.y - 1) / resolution.y;
         sampler()->reset(command_buffer, make_uint2(resolution.x + add_x, resolution.y), pixel_count + add_x * resolution.y, spp);
-        command_buffer << pipeline().printer().reset();
         command_buffer << compute::synchronize();
         LUISA_INFO(
             "Rendering to '{}' of resolution {}x{} at {}spp.",
@@ -533,13 +532,11 @@ protected:
                     command_buffer << [&progress, p] { progress.update(p); };
                 }
             }
-            command_buffer << pipeline().printer().retrieve();
         }
         LUISA_INFO("total spp:{}", runtime_spp);
         //tot_photon is photon_per_iter not photon_per_iter*spp because of unnormalized samples
         command_buffer << indirect_draw(node<MegakernelPhotonMapping>()->photon_per_iter(), runtime_spp).dispatch(resolution);
         command_buffer << synchronize();
-        command_buffer << pipeline().printer().retrieve();
 
         progress.done();
 

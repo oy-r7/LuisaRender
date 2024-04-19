@@ -70,7 +70,7 @@ protected:
             wo_local = shading.world_to_local(wo);
             wi_local = shading.world_to_local(wi);
         };
-        pipeline().printer().verbose_with_location(
+        device_log(
             "wo_local: ({}, {}, {}), wi_local: ({}, {}, {})",
             wo_local.x, wo_local.y, wo_local.z,
             wi_local.x, wi_local.y, wi_local.z);
@@ -96,7 +96,7 @@ protected:
         SampledSpectrum Li{swl.dimension(), 0.f};
         SampledSpectrum r_u{swl.dimension(), 1.f}, r_l{swl.dimension(), 1.f};
         auto rr_depth = node<MegakernelVolumePathTracing>()->rr_depth();
-        auto medium_tracker = MediumTracker(pipeline().printer());
+        MediumTracker medium_tracker;
 
         // functions
         auto le_zero = [](auto b) noexcept { return b <= 0.f; };
@@ -113,7 +113,7 @@ protected:
             auto it = pipeline().geometry()->intersect(ray);
             $if(!it->valid()) { $break; };
 
-            pipeline().printer().verbose_with_location("depth={}", depth_track + 1u);
+            device_log("depth={}", depth_track + 1u);
 
             $if(it->shape().has_medium()) {
                 auto surface_tag = it->shape().surface_tag();
@@ -128,39 +128,37 @@ protected:
                 // deal with medium tracker
                 auto surface_event = event(swl, it, time, -ray->direction(), ray->direction());
                 pipeline().surfaces().dispatch(surface_tag, [&](auto surface) {
-                    pipeline().printer().verbose_with_location("surface event={}", surface_event);
+                    device_log("surface event={}", surface_event);
                     // update medium tracker
                     $switch(surface_event) {
                         $case(Surface::event_enter) {
                             medium_tracker.enter(medium_priority, medium_info);
-                            pipeline().printer().verbose_with_location("enter: priority={}, medium_tag={}", medium_priority, medium_tag);
+                            device_log("enter: priority={}, medium_tag={}", medium_priority, medium_tag);
                         };
                         $case(Surface::event_exit) {
                             $if(medium_tracker.exist(medium_priority, medium_info)) {
                                 medium_tracker.exit(medium_priority, medium_info);
-                                pipeline().printer().verbose_with_location("exit exist: priority={}, medium_tag={}", medium_priority, medium_tag);
+                                device_log("exit exist: priority={}, medium_tag={}", medium_priority, medium_tag);
                             }
                             $else {
                                 medium_tracker.enter(medium_priority, medium_info);
-                                pipeline().printer().verbose_with_location("exit nonexistent: priority={}, medium_tag={}", medium_priority, medium_tag);
+                                device_log("exit nonexistent: priority={}, medium_tag={}", medium_priority, medium_tag);
                             };
                         };
                     };
                 });
             };
-            pipeline().printer().verbose_with_location("medium tracker size={}", medium_tracker.size());
+            device_log("medium tracker size={}", medium_tracker.size());
             auto dir = ray->direction();
             auto origin = ray->origin();
-            pipeline().printer().verbose_with_location("ray->origin()=({}, {}, {})", origin.x, origin.y, origin.z);
-            pipeline().printer().verbose_with_location("ray->direction()=({}, {}, {})", dir.x, dir.y, dir.z);
-            pipeline().printer().verbose_with_location("it->p()=({}, {}, {})", it->p().x, it->p().y, it->p().z);
-            pipeline().printer().verbose_with_location("it->shape().has_medium()={}", it->shape().has_medium());
-            pipeline().printer().verbose("");
+            device_log("ray->origin()=({}, {}, {})", origin.x, origin.y, origin.z);
+            device_log("ray->direction()=({}, {}, {})", dir.x, dir.y, dir.z);
+            device_log("it->p()=({}, {}, {})", it->p().x, it->p().y, it->p().z);
+            device_log("it->shape().has_medium()={}", it->shape().has_medium());
             ray = it->spawn_ray(ray->direction());
             depth_track += 1u;
         };
-        pipeline().printer().verbose_with_location("Final medium tracker size={}", medium_tracker.size());
-        pipeline().printer().verbose("");
+        device_log("Final medium tracker size={}", medium_tracker.size());
 
         ray = camera_ray;
         auto pdf_bsdf = def(1e16f);
@@ -177,10 +175,10 @@ protected:
             auto it = pipeline().geometry()->intersect(ray);
             auto has_medium = it->shape().has_medium();
 
-            pipeline().printer().verbose_with_location("depth={}", depth + 1u);
-            pipeline().printer().verbose_with_location("before: medium tracker size={}, priority={}, tag={}",
+            device_log("depth={}", depth + 1u);
+            device_log("before: medium tracker size={}, priority={}, tag={}",
                                                        medium_tracker.size(), medium_tracker.current().priority, medium_tracker.current().medium_tag);
-            pipeline().printer().verbose_with_location("it->p(): ({}, {}, {})", it->p().x, it->p().y, it->p().z);
+            device_log("it->p(): ({}, {}, {})", it->p().x, it->p().y, it->p().z);
 
             // sample the participating medium
             $if(!medium_tracker.vacuum()) {
@@ -239,13 +237,13 @@ protected:
                                     UInt medium_event = Medium::sample_event(pAbsorb, pScatter, pNull, um);
                                     // don't use switch-case here, because of local variable definition
                                     $if(medium_event == Medium::event_absorb) {
-                                        pipeline().printer().verbose_with_location("Absorb");
+                                        device_log("Absorb");
                                         // Handle absorption along ray path
                                         terminated = true;
                                         ans = false;
                                     }
                                     $elif(medium_event == Medium::event_scatter) {
-                                        pipeline().printer().verbose_with_location("Scatter");
+                                        device_log("Scatter");
                                         // Handle scattering along ray path
                                         // Stop path sampling if maximum depth has been reached
                                         depth += 1u;
@@ -351,7 +349,7 @@ protected:
                                                     scattered = true;
                                                     auto p = closure_p->ray()->origin();
                                                     ray = make_ray(p, ps.wi);
-                                                    pipeline().printer().verbose_with_location(
+                                                    device_log(
                                                         "Medium scattering event at depth={}, p=({}, {}, {})",
                                                         depth, p.x, p.y, p.z);
                                                 };
@@ -360,7 +358,7 @@ protected:
                                         };
                                     }
                                     $elif(medium_event == Medium::event_null) {
-                                        pipeline().printer().verbose_with_location("Null");
+                                        device_log("Null");
                                         // Handle null scattering along ray path
                                         SampledSpectrum sigma_n = max(sigma_maj - closure_p->sigma_a() - closure_p->sigma_s(), 0.f);
                                         Float pdf = T_maj[0u] * sigma_n[0u];
@@ -385,7 +383,7 @@ protected:
                             $continue;
                         };
 
-                        pipeline().printer().verbose_with_location(
+                        device_log(
                             "T_maj=({}, {}, {})", T_maj[0u], T_maj[1u], T_maj[2u]);
 
                         beta *= T_maj / T_maj[0u];
@@ -457,7 +455,7 @@ protected:
                     pipeline().media().dispatch(medium_tag, [&](auto medium) {
                         medium_priority = medium->priority();
                         auto closure = medium->closure(ray, swl, time);
-                        pipeline().printer().verbose_with_location("eta={}", closure->eta());
+                        device_log("eta={}", closure->eta());
                     });
                 };
                 auto medium_info = make_medium_info(medium_priority, medium_tag);
@@ -539,12 +537,11 @@ protected:
             };
             depth += 1u;
 
-            pipeline().printer().verbose_with_location(
+            device_log(
                 "scattered={}, beta=({}, {}, {}), pdf_bsdf={}, Li: ({}, {}, {})",
                 scattered, beta[0u], beta[1u], beta[2u], pdf_bsdf, Li[0u], Li[1u], Li[2u]);
-            pipeline().printer().verbose_with_location("after: medium tracker size={}, priority={}, tag={}",
+            device_log("after: medium tracker size={}, priority={}, tag={}",
                                                        medium_tracker.size(), medium_tracker.current().priority, medium_tracker.current().medium_tag);
-            pipeline().printer().verbose("");
         };
         return spectrum->srgb(swl, Li);
     }
