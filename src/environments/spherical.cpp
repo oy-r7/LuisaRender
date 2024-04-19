@@ -96,13 +96,14 @@ public:
             auto L = _evaluate(wi_local, uv, swl, time);
             if (_texture->node()->is_constant()) {
                 eval = {.L = L, .pdf = uniform_sphere_pdf()};
+            } else {
+                auto size = make_float2(Spherical::sample_map_size);
+                auto ix = cast<uint>(clamp(uv.x * size.x, 0.f, size.x - 1.f));
+                auto iy = cast<uint>(clamp(uv.y * size.y, 0.f, size.y - 1.f));
+                auto pdf_buffer = pipeline().buffer<float>(*_pdf_buffer_id);
+                auto pdf = pdf_buffer.read(iy * Spherical::sample_map_size.x + ix);
+                eval = {.L = L, .pdf = _directional_pdf(pdf, theta)};
             }
-            auto size = make_float2(Spherical::sample_map_size);
-            auto ix = cast<uint>(clamp(uv.x * size.x, 0.f, size.x - 1.f));
-            auto iy = cast<uint>(clamp(uv.y * size.y, 0.f, size.y - 1.f));
-            auto pdf_buffer = pipeline().buffer<float>(*_pdf_buffer_id);
-            auto pdf = pdf_buffer.read(iy * Spherical::sample_map_size.x + ix);
-            eval = {.L = L, .pdf = _directional_pdf(pdf, theta)};
         };
         return eval;
     }
