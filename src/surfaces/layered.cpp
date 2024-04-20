@@ -392,7 +392,9 @@ private:
             };
         };
         return {.f = f / Float(ctx.samples),
-                .pdf = lerp(1.f / (4.f * pi), pdf_sum / Float(ctx.samples), 0.9f)};
+                .pdf = lerp(1.f / (4.f * pi), pdf_sum / Float(ctx.samples), 0.9f),
+                .f_diffuse = SampledSpectrum{swl().dimension()},// TODO: not the true diffuse pdf
+                .pdf_diffuse = 0.f};
     }
     [[nodiscard]] Surface::Sample _sample(Expr<float3> wo, Expr<float> u_lobe, Expr<float2> u,
                                           TransportMode mode) const noexcept override {
@@ -457,7 +459,7 @@ private:
                     w_local = it.shading().world_to_local(w);
                     $if((bs.event & Surface::event_transmit) != 0u) {
                         s = Surface::Sample{
-                            .eval = {.f = f, .pdf = pdf},
+                            .eval = {.f = f, .pdf = pdf, .f_diffuse = SampledSpectrum{swl().dimension()}, .pdf_diffuse = 0.f},// TODO: not the true diffuse
                             .wi = w,
                             .event = ite(same_hemisphere(w_local, wo_local),
                                          Surface::event_reflect,

@@ -567,7 +567,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
             Float2 main_roughness;
             auto main_bsdf_eta = def(0.f);// eta at previous main it
             auto wo = -main.ray->direction();
-            Surface::Evaluation main_light_eval{.f = SampledSpectrum{swl.dimension(), 0.f}, .pdf = 0.f};
+            auto main_light_eval = Surface::Evaluation::zero(swl.dimension());
             auto wi = main_light_sample.shadow_ray->direction();
             pipeline().surfaces().dispatch(main_surface_tag, [&](auto surface) noexcept {
                 PolymorphicCall<Surface::Closure> light_eval_call;
@@ -625,7 +625,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                             $case((uint)RayConnection::RAY_RECENTLY_CONNECTED) {
                                 auto incoming_direction = normalize(shifted.it.p() - main.it.p());
 
-                                Surface::Evaluation shifted_bsdf_eval{.f = SampledSpectrum{swl.dimension(), 0.f}, .pdf = 0.f};
+                                auto shifted_bsdf_eval = Surface::Evaluation::zero(swl.dimension());
                                 pipeline().surfaces().dispatch(main_surface_tag, [&](auto surface) noexcept {
                                     PolymorphicCall<Surface::Closure> shifted_eval_call;
                                     surface->closure(shifted_eval_call, main.it, swl, incoming_direction, 1.f, time);
@@ -650,7 +650,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                 // TODO: No strict normal here
                                 auto shifted_surface_tag = shifted.it.shape().surface_tag();
                                 auto shifted_light_sample = light_sampler()->sample(shifted.it, u_light_selection, u_light_surface, swl, time);
-                                Surface::Evaluation shifted_light_eval{.f = SampledSpectrum{swl.dimension(), 0.f}, .pdf = 0.f};
+                                auto shifted_light_eval = Surface::Evaluation::zero(swl.dimension());
                                 pipeline().surfaces().dispatch(shifted_surface_tag, [&](auto surface) noexcept {
                                     PolymorphicCall<Surface::Closure> shifted_light_call;
                                     surface->closure(shifted_light_call, shifted.it, swl, -shifted.ray->direction(), 1.f, time);
@@ -810,7 +810,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                         };
                         $case((uint)RayConnection::RAY_RECENTLY_CONNECTED) {
                             auto incoming_direction = normalize(shifted.it.p() - previous_main_it.p());
-                            Surface::Evaluation shifted_bsdf_eval{.f = SampledSpectrum{swl.dimension(), 0.f}, .pdf = 0.f};
+                            auto shifted_bsdf_eval = Surface::Evaluation::zero(swl.dimension());
                             pipeline().surfaces().dispatch(previous_main_it.shape().surface_tag(), [&](auto surface) noexcept {
                                 PolymorphicCall<Surface::Closure> call;
                                 surface->closure(call, previous_main_it, swl, incoming_direction, 1.f, time);
@@ -931,7 +931,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                 // Combined closures
                                 auto shifted_bsdf_eta = def(0.f);// eta at previous main it
                                 auto outgoing_direction = shifted.it.shading().local_to_world(tangent_space_outgoing_direction);
-                                Surface::Evaluation eval{.f = SampledSpectrum{swl.dimension(), 0.f}, .pdf = 0.f};
+                                auto eval = Surface::Evaluation::zero(swl.dimension());
                                 pipeline().surfaces().dispatch(shifted.it.shape().surface_tag(), [&](auto surface) noexcept {
                                     PolymorphicCall<Surface::Closure> shifted_call;
                                     surface->closure(shifted_call, shifted.it, swl, -shifted.ray->direction(), 1.f, time);
@@ -1183,7 +1183,11 @@ void GradientPathTracingInstance::_render_one_camera(
         auto pixel_id = dispatch_id().xy();
         auto L = current_frame_buffer.read(pixel_id);
         camera->film()->accumulate(pixel_id, L);
-        image_buffers.at("variance")->accumulate(pixel_id, L * L);
+        auto threshold = 256.f;
+        auto abs_L = abs(L);
+        auto strength = max(max(max(abs_L.x, abs_L.y), abs_L.z), 0.f);
+        auto clamp_L = L * (threshold / max(strength, threshold));
+        image_buffers.at("variance")->accumulate(pixel_id, clamp_L * clamp_L);
     };
 
     Kernel2D finalize_var_kernel = [&]() noexcept {

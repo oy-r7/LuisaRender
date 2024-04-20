@@ -6,6 +6,7 @@ luisa_render_add_plugin(wavepathreadback CATEGORY integrator SOURCES wave_path_r
 luisa_render_add_plugin(wavepath_v2 CATEGORY integrator SOURCES wave_path_v2.cpp)
 luisa_render_add_plugin(group CATEGORY integrator SOURCES group.cpp)
 luisa_render_add_plugin(aov CATEGORY integrator SOURCES aov.cpp)
+luisa_render_add_plugin(nfor CATEGORY integrator SOURCES nfor.cpp)
 luisa_render_add_plugin(direct CATEGORY integrator SOURCES direct.cpp)
 luisa_render_add_plugin(pssmlt CATEGORY integrator SOURCES pssmlt.cpp)
 luisa_render_add_plugin(gradientpath CATEGORY integrator SOURCES gpt.cpp)
