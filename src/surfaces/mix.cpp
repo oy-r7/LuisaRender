@@ -97,7 +97,9 @@ private:
         auto t = 1.f - ratio;
         return Surface::Evaluation{
             .f = lerp(eval_a.f, eval_b.f, t),
-            .pdf = lerp(eval_a.pdf, eval_b.pdf, t)};
+            .pdf = lerp(eval_a.pdf, eval_b.pdf, t),
+            .f_diffuse = lerp(eval_a.f_diffuse, eval_b.f_diffuse, t),
+            .pdf_diffuse = lerp(eval_a.pdf_diffuse, eval_b.pdf_diffuse, t)};
     }
 
 public:

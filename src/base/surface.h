@@ -43,11 +43,14 @@ public:
     struct Evaluation {
         SampledSpectrum f;
         Float pdf;
-
+        SampledSpectrum f_diffuse;
+        Float pdf_diffuse;
         [[nodiscard]] static auto zero(uint spec_dim) noexcept {
             return Evaluation{
                 .f = SampledSpectrum{spec_dim},
-                .pdf = 0.f};
+                .pdf = 0.f,
+                .f_diffuse = SampledSpectrum{spec_dim},
+                .pdf_diffuse = 0.f};
         }
     };
 

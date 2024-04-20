@@ -483,6 +483,8 @@ private:
                                                       TransportMode mode) const noexcept {
         SampledSpectrum f{_ctx.color.dimension(), 0.f};
         auto pdf = def(0.f);
+        SampledSpectrum f_diffuse{_ctx.color.dimension(), 0.f};
+        auto pdf_diffuse = def(0.f);
         $outline {
             $if(same_hemisphere(wo_local, wi_local)) {// reflection
                 if (_diffuse) {
@@ -520,7 +522,7 @@ private:
                 }
             };
         };
-        return {.f = f * abs_cos_theta(wi_local), .pdf = pdf};
+        return {.f = f * abs_cos_theta(wi_local), .pdf = pdf, .f_diffuse = f_diffuse * abs_cos_theta(wi_local), .pdf_diffuse = pdf_diffuse};
     }
 
 public:
@@ -729,15 +731,22 @@ private:
                                                       TransportMode mode) const noexcept {
         SampledSpectrum f{_ctx.color.dimension(), 0.f};
         auto pdf = def(0.f);
+        SampledSpectrum f_diffuse{_ctx.color.dimension(), 0.f};
+        auto pdf_diffuse = def(0.f);
         $if(same_hemisphere(wo_local, wi_local)) {// reflection
             if (_diffuse) {
                 $if(_sampling_weights[diffuse_like_technique_index] > 0.f) {
-                    f += _diffuse->evaluate(wo_local, wi_local, mode);
-                    f += _retro->evaluate(wo_local, wi_local, mode);
-                    if (_fake_ss) { f += _fake_ss->evaluate(wo_local, wi_local, mode); }
-                    if (_sheen) { f += _sheen->evaluate(wo_local, wi_local, mode); }
-                    pdf += _sampling_weights[diffuse_like_technique_index] *
-                           _diffuse->pdf(wo_local, wi_local, mode);
+                    SampledSpectrum delta_f{_ctx.color.dimension(), 0.f};
+                    delta_f += _diffuse->evaluate(wo_local, wi_local, mode);
+                    delta_f += _retro->evaluate(wo_local, wi_local, mode);
+                    if (_fake_ss) { delta_f += _fake_ss->evaluate(wo_local, wi_local, mode); }
+                    if (_sheen) { delta_f += _sheen->evaluate(wo_local, wi_local, mode); }
+                    f += delta_f;
+                    f_diffuse += delta_f;
+                    auto delta_pdf = _sampling_weights[diffuse_like_technique_index] *
+                                     _diffuse->pdf(wo_local, wi_local, mode);
+                    pdf += delta_pdf;
+                    pdf_diffuse += delta_pdf;
                 };
             }
             if (_specular) {
@@ -765,13 +774,17 @@ private:
             }
             if (_diff_trans) {
                 $if(_sampling_weights[diff_trans_technique_index] > 0.f) {
-                    f += _diff_trans->evaluate(wo_local, wi_local, mode);
-                    pdf += _sampling_weights[diff_trans_technique_index] *
-                           _diff_trans->pdf(wo_local, wi_local, mode);
+                    auto delta_f = _diff_trans->evaluate(wo_local, wi_local, mode);
+                    auto delta_pdf = _sampling_weights[diff_trans_technique_index] *
+                                     _diff_trans->pdf(wo_local, wi_local, mode);
+                    f += delta_f;
+                    f_diffuse += delta_f;
+                    pdf += delta_pdf;
+                    pdf_diffuse += delta_pdf;
                 };
             }
         };
-        return {.f = f * abs_cos_theta(wi_local), .pdf = pdf};
+        return {.f = f * abs_cos_theta(wi_local), .pdf = pdf, .f_diffuse = f_diffuse * abs_cos_theta(wi_local), .pdf_diffuse = pdf_diffuse};
     }
 
 public:

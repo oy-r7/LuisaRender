@@ -245,7 +245,7 @@ private:
         auto f = lobe.evaluate(wo_local, wi_local, mode);
         f *= ctx.refl;
         auto pdf = lobe.pdf(wo_local, wi_local, mode);
-        return {.f = f * abs_cos_theta(wi_local), .pdf = pdf};
+        return {.f = f * abs_cos_theta(wi_local), .pdf = pdf, .f_diffuse = SampledSpectrum{swl().dimension()}, .pdf_diffuse = 0.f};
     }
     [[nodiscard]] Surface::Sample _sample(Expr<float3> wo, Expr<float>, Expr<float2> u,
                                           TransportMode mode) const noexcept override {
@@ -262,7 +262,7 @@ private:
                              u, std::addressof(pdf), mode);
         f *= ctx.refl;
         auto wi = it.shading().local_to_world(wi_local);
-        return {.eval = {.f = f * abs_cos_theta(wi_local), .pdf = pdf},
+        return {.eval = {.f = f * abs_cos_theta(wi_local), .pdf = pdf, .f_diffuse = SampledSpectrum{swl().dimension()}, .pdf_diffuse = 0.f},
                 .wi = wi,
                 .event = Surface::event_reflect};
     }

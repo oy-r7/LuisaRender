@@ -181,7 +181,7 @@ private:
         SampledSpectrum f{swl().dimension()};
         auto pdf = def(0.f);
         auto ratio = _refl_prob(fresnel, ctx.Kr_ratio, wo_local);
-        $if(same_hemisphere(wo_local, wi_local)) {
+        $if (same_hemisphere(wo_local, wi_local)) {
             f = refl.evaluate(wo_local, wi_local, mode);
             pdf = refl.pdf(wo_local, wi_local, mode) * ratio;
         }
@@ -189,7 +189,11 @@ private:
             f = trans.evaluate(wo_local, wi_local, mode);
             pdf = trans.pdf(wo_local, wi_local, mode) * (1.f - ratio);
         };
-        return {.f = f * abs_cos_theta(wi_local), .pdf = pdf};
+        return {
+            .f = f * abs_cos_theta(wi_local),
+            .pdf = pdf,
+            .f_diffuse = SampledSpectrum{swl().dimension()},
+            .pdf_diffuse = 0.f};
     }
 
     [[nodiscard]] Surface::Sample _sample(Expr<float3> wo,
@@ -209,7 +213,7 @@ private:
         auto event = def(Surface::event_reflect);
         auto ratio = _refl_prob(fresnel, ctx.Kr_ratio, wo_local);
         auto wi = def(make_float3());
-        $if(u_lobe < ratio) {// Reflection
+        $if (u_lobe < ratio) {// Reflection
             f = refl.sample(wo_local, std::addressof(wi_local),
                             u, std::addressof(pdf), mode);
             wi = it.shading().local_to_world(wi_local);
@@ -222,7 +226,12 @@ private:
             pdf *= (1.f - ratio);
             event = ite(cos_theta(wo_local) > 0.f, Surface::event_enter, Surface::event_exit);
         };
-        return {.eval = {.f = f * abs_cos_theta(wi_local), .pdf = pdf}, .wi = wi, .event = event};
+        return {.eval = {.f = f * abs_cos_theta(wi_local),
+                         .pdf = pdf,
+                         .f_diffuse = SampledSpectrum{swl().dimension()},
+                         .pdf_diffuse = 0.f},
+                .wi = wi,
+                .event = event};
     }
 };
 

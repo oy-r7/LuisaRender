@@ -107,6 +107,7 @@ luisa::unique_ptr<Surface::Instance> PlasticSurface::_build(
 struct PlasticContext {
     Interaction it;
     SampledSpectrum Kd;
+    SampledSpectrum Kd_scale;
     Float Kd_weight;
     SampledSpectrum sigma_a;
     Float eta;
@@ -156,12 +157,12 @@ public:
             auto Fo = fresnel_dielectric(abs_cos_theta(wo_local), 1.f, eta);
             auto a = exp(-(1.f / abs_cos_theta(wi_local) + 1.f / abs_cos_theta(wo_local)) * _ctx.sigma_a);
             auto f_diffuse = (1.f - Fi) * (1.f - Fo) * sqr(1.f / eta) * a *
-                             _substrate.evaluate(wo_local, wi_local, mode);
+                             (_ctx.Kd_scale * _substrate.evaluate(wo_local, wi_local, mode));
             auto pdf_diffuse = _substrate.pdf(wo_local, wi_local, mode);
             auto substrate_weight = _substrate_weight(Fo, _ctx.Kd_weight);
             auto f = (f_coat + f_diffuse) * abs_cos_theta(wi_local);
             auto pdf = lerp(pdf_coat, pdf_diffuse, substrate_weight);
-            eval = {.f = f, .pdf = pdf};
+            eval = {.f = f, .pdf = pdf, .f_diffuse = f_diffuse * abs_cos_theta(wi_local), .pdf_diffuse = pdf_diffuse};
         };
         return eval;
     }
@@ -188,9 +189,12 @@ public:
             };
             SampledSpectrum f{_ctx.Kd.dimension(), 0.f};
             auto pdf = def(0.f);
+            SampledSpectrum f_diffuse{_ctx.Kd.dimension(), 0.f};
+            auto pdf_diffuse = def(0.f);
             auto wi = def(make_float3(0.f, 0.f, 1.f));
+            auto wi_local = def(make_float3(0.f, 0.f, 1.f));
             $if(wi_sample.valid) {
-                auto wi_local = wi_sample.wi;
+                wi_local = wi_sample.wi;
                 wi = _ctx.it.shading().local_to_world(wi_sample.wi * sign);
                 auto f_coat = _coat.evaluate(wo_local, wi_local, mode);
                 auto pdf_coat = _coat.pdf(wo_local, wi_local, mode);
@@ -198,15 +202,15 @@ public:
                 auto Fi = fresnel_dielectric(abs_cos_theta(wi_local), 1.f, eta);
                 auto a = exp(-(1.f / abs_cos_theta(wi_local) + 1.f / abs_cos_theta(wo_local)) * _ctx.sigma_a);
                 auto ee = sqr(1.f / _fresnel.eta_t());
-                auto f_diffuse = (1.f - Fi) * (1.f - Fo) * sqr(1.f / eta) * a *
-                                 _substrate.evaluate(wo_local, wi_local, mode);
-                auto pdf_diffuse = _substrate.pdf(wo_local, wi_local, mode);
+                f_diffuse = (1.f - Fi) * (1.f - Fo) * sqr(1.f / eta) * a *
+                            (_ctx.Kd_scale * _substrate.evaluate(wo_local, wi_local, mode));
+                pdf_diffuse = _substrate.pdf(wo_local, wi_local, mode);
                 f = (f_coat + f_diffuse) * abs_cos_theta(wi_local);
                 pdf = lerp(pdf_coat, pdf_diffuse, substrate_weight);
             };
-            s = {.eval = {.f = f, .pdf = pdf},
-                    .wi = wi,
-                    .event = Surface::event_reflect};
+            s = {.eval = {.f = f, .pdf = pdf, .f_diffuse = f_diffuse * abs_cos_theta(wi_local), .pdf_diffuse = pdf_diffuse},
+                 .wi = wi,
+                 .event = Surface::event_reflect};
         };
         return s;
     }
@@ -222,8 +226,9 @@ public:
 
     [[nodiscard]] SampledSpectrum albedo() const noexcept override { return context<PlasticContext>().Kd; }
     [[nodiscard]] Float2 roughness() const noexcept override {
-        return TrowbridgeReitzDistribution::alpha_to_roughness(
+        auto r = TrowbridgeReitzDistribution::alpha_to_roughness(
             context<PlasticContext>().roughness);
+        return lerp(r, 1.f, saturate(context<PlasticContext>().Kd_weight));
     }
     [[nodiscard]] const Interaction &it() const noexcept override { return context<PlasticContext>().it; }
 
@@ -281,7 +286,8 @@ void PlasticInstance::populate_closure(Surface::Closure *closure, const Interact
 
     PlasticContext ctx{
         .it = it,
-        .Kd = Kd / (1.f - Kd * diffuse_fresnel),
+        .Kd = Kd,
+        .Kd_scale = 1.f / (1.f - Kd * diffuse_fresnel),
         .Kd_weight = Kd_lum * average_transmittance,
         .sigma_a = sigma_a,
         .eta = eta,
