@@ -83,7 +83,7 @@ public:
     [[nodiscard]] auto hdr() const noexcept { return _hdr; }
     [[nodiscard]] auto vsync() const noexcept { return _vsync; }
     [[nodiscard]] auto back_buffers() const noexcept { return _back_buffers; }
-    [[nodiscard]] auto exposure() const noexcept { return _exposure; }
+    [[nodiscard]] float3 exposure() const noexcept override { return make_float3(_exposure); }
     [[nodiscard]] auto tone_mapping() const noexcept { return _tone_mapping; }
 
     [[nodiscard]] luisa::unique_ptr<Instance> build(
@@ -160,7 +160,9 @@ public:
                 _swapchain.backend_storage(), size);
             _blit = device.compile<2>([&] {
                 auto p = dispatch_id().xy();
-                auto color = _base->read(p).average * std::exp2(d->exposure());
+                auto exposure = d->exposure();
+                exposure = make_float3(std::exp2(exposure.x), std::exp2(exposure.y), std::exp2(exposure.z));
+                auto color = _base->read(p).average * exposure;
                 switch (d->tone_mapping()) {
                     case Display::ToneMapping::NONE: break;
                     case Display::ToneMapping::UNCHARTED2: color = _tone_mapping_uncharted2(color); break;

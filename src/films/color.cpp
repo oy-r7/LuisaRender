@@ -18,6 +18,7 @@ class ColorFilm final : public Film {
 
 private:
     uint2 _resolution{};
+    float3 _exposure;
     float _scale[3]{};
     float _clamp{};
     bool _warn_nan{};
@@ -30,19 +31,20 @@ public:
                   return make_uint2(desc->property_uint_or_default("resolution", 1024u));
               }))},
           _warn_nan{desc->property_bool_or_default("warn_nan", false)} {
-        auto exposure = desc->property_float3_or_default(
+        _exposure = desc->property_float3_or_default(
             "exposure", lazy_construct([desc] {
                 return make_float3(desc->property_float_or_default(
                     "exposure", 0.0f));
             }));
-        _scale[0] = std::pow(2.0f, exposure.x);
-        _scale[1] = std::pow(2.0f, exposure.y);
-        _scale[2] = std::pow(2.0f, exposure.z);
+        _scale[0] = std::pow(2.0f, _exposure.x);
+        _scale[1] = std::pow(2.0f, _exposure.y);
+        _scale[2] = std::pow(2.0f, _exposure.z);
         _clamp = std::max(1.f, desc->property_float_or_default("clamp", 256.f));
     }
     [[nodiscard]] auto scale() const noexcept { return make_float3(_scale[0], _scale[1], _scale[2]); }
     [[nodiscard]] float clamp() const noexcept override { return _clamp; }
     [[nodiscard]] uint2 resolution() const noexcept override { return _resolution; }
+    [[nodiscard]] float3 exposure() const noexcept override { return _exposure; }
     [[nodiscard]] auto warn_nan() const noexcept { return _warn_nan; }
     [[nodiscard]] luisa::unique_ptr<Instance> build(
         Pipeline &pipeline, CommandBuffer &command_buffer) const noexcept override;

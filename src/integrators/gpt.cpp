@@ -1183,6 +1183,8 @@ void GradientPathTracingInstance::_render_one_camera(
         auto pixel_id = dispatch_id().xy();
         auto L = current_frame_buffer.read(pixel_id);
         camera->film()->accumulate(pixel_id, L);
+        auto exposure = camera->film()->node()->exposure();
+        L = L * exp2(exposure);
         auto threshold = 256.f;
         auto abs_L = abs(L);
         auto strength = max(max(max(abs_L.x, abs_L.y), abs_L.z), 0.f);
