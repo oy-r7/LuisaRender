@@ -149,9 +149,12 @@ public:
             _window = luisa::make_unique<Window>("Display", size);
             auto d = node<Display>();
             auto option = SwapchainOption{
-            .display = _window->native_display(),
-            .window = _window->native_handle(),
-            size, d->hdr(), d->vsync(), d->back_buffers()};
+                .display = _window->native_display(),
+                .window = _window->native_handle(),
+                .size = size,
+                .wants_hdr = d->hdr(),
+                .wants_vsync = d->vsync(),
+                .back_buffer_count = d->back_buffers()};
             _swapchain = device.create_swapchain(*command_buffer.stream(), option);
             _framebuffer = device.create_image<float>(
                 _swapchain.backend_storage(), size);
