@@ -48,6 +48,7 @@ public:
 public:
     Film(Scene *scene, const SceneNodeDesc *desc) noexcept;
     [[nodiscard]] virtual uint2 resolution() const noexcept = 0;
+    [[nodiscard]] virtual float3 exposure() const noexcept = 0;
     [[nodiscard]] virtual luisa::unique_ptr<Instance> build(
         Pipeline &pipeline, CommandBuffer &command_buffer) const noexcept = 0;
     [[nodiscard]] virtual float clamp() const noexcept { return 1024.0f; }
