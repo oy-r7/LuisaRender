@@ -71,7 +71,7 @@ jobs:
           sudo cmake --install build --prefix dist -v
       - name: "Upload Artifact"
         if: matrix.config == 'Release'
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           path: "dist/bin"
           name: LuisaRender-${{ matrix.os }}-${{ matrix.compiler.name }}-${{ matrix.compiler.version }}
@@ -91,17 +91,15 @@ jobs:
           submodules: recursive
       - name: "Install Dependencies"
         run: |
-          brew install cmake ninja llvm sccache glfw
-      - name: "Setup Vulkan SDK"
-        uses: humbletim/setup-vulkan-sdk@v1.2.0
-        with:
-          vulkan-query-version: 1.3.204.0
-          vulkan-components: Vulkan-Headers, Vulkan-Loader
-          vulkan-use-cache: true
+          brew install cmake ninja llvm sccache glfw molten-vk
       - name: "Configure and Build"
         run: |
           if [ "${{ matrix.compiler }}" = "homebrew-clang" ]; then
-            export PATH=/usr/local/opt/llvm/bin:$PATH
+            if [ "${{ matrix.os }}" = "macos-13" ]; then
+              export PATH="/usr/local/opt/llvm/bin:$PATH"
+            else
+              export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
+            fi
           fi
           cmake -S . -B build -G Ninja -D CMAKE_BUILD_TYPE=${{ matrix.config }} -D CMAKE_C_COMPILER=clang -D CMAKE_CXX_COMPILER=clang++ -D LUISA_COMPUTE_ENABLE_UNITY_BUILD=OFF
           cmake --build build
@@ -111,7 +109,7 @@ jobs:
           sudo cmake --install build --prefix dist -v
       - name: "Upload Artifact"
         if: matrix.config == 'Release'
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           path: "dist/bin"
           name: LuisaRender-${{ matrix.os }}-${{ matrix.compiler }}
@@ -159,7 +157,7 @@ jobs:
           cmake --install build --prefix dist -v
       - name: "Upload Artifact"
         if: matrix.config == 'Release'
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           path: "dist/bin"
           name: LuisaRender-windows-${{ matrix.os }}-${{ matrix.compiler }}
