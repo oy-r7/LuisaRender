@@ -22,7 +22,11 @@ add_library(luisa-render-util SHARED
         polymorphic_closure.h
         command_buffer.cpp command_buffer.h
         thread_pool.cpp thread_pool.h)
+
+find_package(Threads)
+
 target_link_libraries(luisa-render-util PUBLIC
+        Threads::Threads
         luisa::compute
         luisa-render-include
         luisa-render-ext)

@@ -3,6 +3,8 @@
 //
 
 #include <limits>
+#include <future>
+
 #include <luisa-compute.h>
 
 #include <base/film.h>
