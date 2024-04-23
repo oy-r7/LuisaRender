@@ -407,8 +407,8 @@ void AuxiliaryBufferPathTracingInstance::_render_one_camera(
             });
         };
         auto exposure = camera->film()->node()->exposure();
-        auto radiance = spectrum->srgb(swl, Li * shutter_weight) * exp2(exposure);
-        auto diffuse = min(radiance, spectrum->srgb(swl, Li_diffuse * shutter_weight) * exp2(exposure));
+        auto radiance = spectrum->srgb(swl, Li * shutter_weight) * luisa::exp2(exposure);
+        auto diffuse = min(radiance, spectrum->srgb(swl, Li_diffuse * shutter_weight) * luisa::exp2(exposure));
         auto specular = radiance - diffuse;
         aux_buffers.at("sample")->accumulate(pixel_id, make_float4(radiance, 1.f));
         aux_buffers.at("radiance_2")->accumulate(pixel_id, make_float4(radiance * radiance, 1.f));

@@ -218,7 +218,7 @@ public:
 
     void accumulate(Expr<uint2> p, Expr<float3> value, Expr<float> effective_spp = 1.f) noexcept {
         if (_image) {
-            $if(!any(isnan(value))) {
+            $if (!any(isnan(value))) {
                 auto index = p.y * _resolution.x + p.x;
                 auto v = make_float4(value, effective_spp);
                 for (auto ch = 0u; ch < 4u; ch++) {
@@ -295,10 +295,10 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
     Float main_eta, Float shifted_eta) const noexcept {
     HalfVectorShiftResult result;
 
-    $if(cos_theta(tangent_space_main_wi) * cos_theta(tangent_space_shifted_wi) < 0.f) {
+    $if (cos_theta(tangent_space_main_wi) * cos_theta(tangent_space_shifted_wi) < 0.f) {
         // Refraction
 
-        $if(main_eta == 1.f | shifted_eta == 1.f) {
+        $if (main_eta == 1.f | shifted_eta == 1.f) {
             result.success = false;
         }
         $else {
@@ -315,7 +315,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                                 shifted_eta,
                                                 std::addressof(tangent_space_shifted_wo));
 
-            $if(!refract_not_internal) {
+            $if (!refract_not_internal) {
                 result.success = false;
             }
             $else {
@@ -359,7 +359,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
     Expr<float3> target_normal) const noexcept {
     ReconnectionShiftResult result;
     result.success = false;
-    $if(test_visibility(shift_source_vertex, target_vertex)) {
+    $if (test_visibility(shift_source_vertex, target_vertex)) {
         auto main_edge = main_source_vertex - target_vertex;
         auto shifted_edge = shift_source_vertex - target_vertex;
 
@@ -390,7 +390,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
     auto offset_ray = make_ray(
         shift_source_vertex, main_ray->direction(), main_ray->t_min(), main_ray->t_max());
 
-    $if(test_environment_visibility(offset_ray)) {
+    $if (test_environment_visibility(offset_ray)) {
         result.success = true;
         result.jacobian = 1.f;
         result.wo = main_ray->direction();
@@ -480,22 +480,22 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
 
     auto load_ray_state = [dim = swl.dimension(), &shifteds](auto i) noexcept {
         RayState shifted{dim};
-        $switch(i) {
-            $case(0) { shifted = shifteds[0]; };
-            $case(1) { shifted = shifteds[1]; };
-            $case(2) { shifted = shifteds[2]; };
-            $case(3) { shifted = shifteds[3]; };
+        $switch (i) {
+            $case (0) { shifted = shifteds[0]; };
+            $case (1) { shifted = shifteds[1]; };
+            $case (2) { shifted = shifteds[2]; };
+            $case (3) { shifted = shifteds[3]; };
             $default { unreachable(); };
         };
         return shifted;
     };
 
     auto store_ray_state = [&shifteds](auto i, auto &shifted) noexcept {
-        $switch(i) {
-            $case(0) { shifteds[0] = shifted; };
-            $case(1) { shifteds[1] = shifted; };
-            $case(2) { shifteds[2] = shifted; };
-            $case(3) { shifteds[3] = shifted; };
+        $switch (i) {
+            $case (0) { shifteds[0] = shifted; };
+            $case (1) { shifteds[1] = shifted; };
+            $case (2) { shifteds[2] = shifted; };
+            $case (3) { shifteds[3] = shifted; };
             $default { unreachable(); };
         };
     };
@@ -509,7 +509,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
         // shifted.ray->set_t_min(epsilon);
     }
 
-    $if(!main.it.valid()) {
+    $if (!main.it.valid()) {
         if (pipeline().environment()) {
             auto eval = light_sampler()->evaluate_miss(main.ray->direction(), swl, time);
             // result += main.throughput * eval.L;
@@ -518,7 +518,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
     }
     $else {
         if (!pipeline().lights().empty()) {
-            $if(main.it.shape().has_light()) {
+            $if (main.it.shape().has_light()) {
                 auto eval = light_sampler()->evaluate_hit(main.it, main.ray->origin(), swl, time);
                 // result += main.throughput * eval.L;
                 result += main.weight * eval.L;
@@ -528,7 +528,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
 
         for (int i = 0; i < 4; i++) {
             auto &shifted = shifteds[i];
-            $if(!shifted.it.valid()) {
+            $if (!shifted.it.valid()) {
                 shifted.alive = false;
             };
         }
@@ -537,12 +537,12 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
         // TODO
 
         // Main PT Loop
-        $for(depth, node<GradientPathTracing>()->max_depth()) {
+        $for (depth, node<GradientPathTracing>()->max_depth()) {
             // Strict normal check to produce the same results as bidirectional methods when normal mapping is used.
             // TODO
 
             auto last_segment = depth + 1 == node<GradientPathTracing>()->max_depth();
-            $if(!main.it.shape().has_surface()) { $break; };
+            $if (!main.it.shape().has_surface()) { $break; };
 
             // Previously sample surface to get alpha skip status
             // auto main_bsdf_result = sample_surface(main, swl, time);
@@ -563,7 +563,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
             auto main_occluded = pipeline().geometry()->intersect_any(main_light_sample.shadow_ray);
 
             auto main_surface_tag = main.it.shape().surface_tag();
-//            auto main_vertex_type = get_vertex_type(make_shared<Interaction>(main.it), swl, time);
+            //            auto main_vertex_type = get_vertex_type(make_shared<Interaction>(main.it), swl, time);
             Float2 main_roughness;
             auto main_bsdf_eta = def(0.f);// eta at previous main it
             auto wo = -main.ray->direction();
@@ -579,7 +579,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                 });
             });
             auto main_vertex_type = get_vertex_type_by_roughness(min(main_roughness.x, main_roughness.y));
-            $if(main_light_sample.eval.pdf > 0.f & !main_occluded) {
+            $if (main_light_sample.eval.pdf > 0.f & !main_occluded) {
                 auto main_distance_squared = length_squared(main.it.p() - main_light_sample.eval.p);
                 auto main_opposing_cosine = dot(main_light_sample.eval.ng, normalize(main.it.p() - main_light_sample.eval.p));
 
@@ -608,9 +608,9 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
 
                     auto shift_successful = shifted.alive;
 
-                    $if(shift_successful) {
-                        $switch(shifted.connection_status) {
-                            $case((uint)RayConnection::RAY_CONNECTED) {
+                    $if (shift_successful) {
+                        $switch (shifted.connection_status) {
+                            $case ((uint)RayConnection::RAY_CONNECTED) {
                                 auto shifted_bsdf_pdf = main_bsdf_pdf;
                                 auto shifted_emitter_pdf = main_light_sample.eval.pdf;
                                 auto shifted_bsdf_value = main_light_eval.f;
@@ -622,7 +622,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                 main_contribution = main_light_eval.f * main_light_sample.eval.L * main.weight / new_denominator;
                                 shifted_contribution = jacobian * (shifted_bsdf_value * shifted_emitter_radiance) * shifted.weight * shifted.pdf_div_main_pdf / new_denominator;
                             };
-                            $case((uint)RayConnection::RAY_RECENTLY_CONNECTED) {
+                            $case ((uint)RayConnection::RAY_RECENTLY_CONNECTED) {
                                 auto incoming_direction = normalize(shifted.it.p() - main.it.p());
 
                                 auto shifted_bsdf_eval = Surface::Evaluation::zero(swl.dimension());
@@ -644,7 +644,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                 main_contribution = main_light_eval.f * main_light_sample.eval.L * main.weight / new_denominator;
                                 shifted_contribution = jacobian * (shifted_bsdf_value * shifted_emitter_radiance) * shifted.weight * shifted.pdf_div_main_pdf / new_denominator;
                             };
-                            $case((uint)RayConnection::RAY_NOT_CONNECTED) {
+                            $case ((uint)RayConnection::RAY_NOT_CONNECTED) {
                                 // TODO
                                 Float2 shifted_roughness;
                                 // TODO: No strict normal here
@@ -661,11 +661,11 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                 });
                                 auto shifted_vertex_type = get_vertex_type_by_roughness(min(shifted_roughness.x, shifted_roughness.y));
 
-                                $if(main_vertex_type == (uint)VertexType::VERTEX_TYPE_DIFFUSE & shifted_vertex_type == (uint)VertexType::VERTEX_TYPE_DIFFUSE) {
+                                $if (main_vertex_type == (uint)VertexType::VERTEX_TYPE_DIFFUSE & shifted_vertex_type == (uint)VertexType::VERTEX_TYPE_DIFFUSE) {
                                     //                                    u_light_selection = sampler()->generate_1d();
                                     //                                    u_light_surface = sampler()->generate_2d();
                                     auto shifted_occluded = pipeline().geometry()->intersect_any(shifted_light_sample.shadow_ray);
-                                    $if(shifted_occluded | shifted_light_sample.eval.pdf <= 0.f) {// shifted failed, no light
+                                    $if (shifted_occluded | shifted_light_sample.eval.pdf <= 0.f) {// shifted failed, no light
                                         shift_successful = false;
                                     }
                                     $else {
@@ -692,7 +692,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                             };
                         };
                     };
-                    $if(!shift_successful) {// shift_successful == false, fall back to central radiance
+                    $if (!shift_successful) {// shift_successful == false, fall back to central radiance
                         main_contribution = main_weight * main_light_eval.f * main_light_sample.eval.L;
                         shifted_contribution = SampledSpectrum{swl.dimension(), 0.f};
                     };
@@ -712,7 +712,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
             //
 
             auto main_bsdf_result = sample_surface(main, swl, time);
-            $if(main_bsdf_result.pdf <= 0.f) {
+            $if (main_bsdf_result.pdf <= 0.f) {
                 $break;
             };
             auto main_wo = main_bsdf_result.sample.wi;
@@ -731,9 +731,9 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
 
             main.ray = main.it.spawn_ray(main_wo);
             main.it = *pipeline().geometry()->intersect(main.ray);
-            $if(main.it.valid()) {
+            $if (main.it.valid()) {
                 if (!pipeline().lights().empty()) {
-                    $if(main.it.shape().has_light()) {
+                    $if (main.it.shape().has_light()) {
                         auto eval = light_sampler()->evaluate_hit(main.it, main.ray->origin(), swl, time);
                         main_emitter_radiance = eval.L;
                         main_emitter_pdf = eval.pdf;
@@ -776,7 +776,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                 main.add_radiance(main_emitter_radiance * main_weight * main_bsdf_result.sample.eval.f);
             }
 
-            $for(i, 4) {
+            $for (i, 4) {
                 auto shifted = load_ray_state(i);
 
                 SampledSpectrum shifted_emitter_radiance{swl.dimension(), 0.f};
@@ -786,16 +786,16 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
 
                 auto postponed_shift_end = def(false);// Kills the shift after evaluating the current radiance.
 
-                $if(shifted.alive) {
+                $if (shifted.alive) {
                     auto shifted_previous_weight = shifted.weight;
                     auto previous_shifted_pdf_div_main_pdf = shifted.pdf_div_main_pdf;
-                    $switch(shifted.connection_status) {
-                        $case((uint)RayConnection::RAY_CONNECTED) {
+                    $switch (shifted.connection_status) {
+                        $case ((uint)RayConnection::RAY_CONNECTED) {
                             auto shifted_bsdf_value = main_bsdf_result.weight;
                             auto shifted_bsdf_pdf = main_bsdf_pdf;
                             auto shifted_lum_pdf = main_lum_pdf;
                             auto &shifted_emitter_radiance = main_emitter_radiance;
-                            $if(shifted_bsdf_pdf <= 0.f) {
+                            $if (shifted_bsdf_pdf <= 0.f) {
                                 shifted.alive = false;
                             }
                             $else {
@@ -808,7 +808,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                 shifted_contribution = (shifted_bsdf_value * shifted_emitter_radiance) * shifted_previous_weight * previous_shifted_pdf_div_main_pdf / new_denominator;
                             };
                         };
-                        $case((uint)RayConnection::RAY_RECENTLY_CONNECTED) {
+                        $case ((uint)RayConnection::RAY_RECENTLY_CONNECTED) {
                             auto incoming_direction = normalize(shifted.it.p() - previous_main_it.p());
                             auto shifted_bsdf_eval = Surface::Evaluation::zero(swl.dimension());
                             pipeline().surfaces().dispatch(previous_main_it.shape().surface_tag(), [&](auto surface) noexcept {
@@ -823,7 +823,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                             auto shifted_lum_pdf = main_lum_pdf;
                             auto &shifted_emitter_radiance = main_emitter_radiance;
 
-                            $if(shifted_bsdf_pdf <= 0.f) {
+                            $if (shifted_bsdf_pdf <= 0.f) {
                                 shifted.alive = false;
                             }
                             $else {
@@ -838,15 +838,15 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                 shifted_contribution = (shifted_bsdf_value * shifted_emitter_radiance) * shifted_previous_weight * previous_shifted_pdf_div_main_pdf / new_denominator;
                             };
                         };
-                        $case((uint)RayConnection::RAY_NOT_CONNECTED) {
+                        $case ((uint)RayConnection::RAY_NOT_CONNECTED) {
                             auto shifted_vertex_type = get_vertex_type(make_shared<Interaction>(shifted.it), swl, time);
-                            $if(main_vertex_type == (uint)VertexType::VERTEX_TYPE_DIFFUSE & main_next_vertex_type == (uint)VertexType::VERTEX_TYPE_DIFFUSE & shifted_vertex_type == (uint)VertexType::VERTEX_TYPE_DIFFUSE) {
+                            $if (main_vertex_type == (uint)VertexType::VERTEX_TYPE_DIFFUSE & main_next_vertex_type == (uint)VertexType::VERTEX_TYPE_DIFFUSE & shifted_vertex_type == (uint)VertexType::VERTEX_TYPE_DIFFUSE) {
                                 // Reconnect shift
-                                $if(!last_segment | main_hit_emitter /*| main.it has subsurface TODO*/) {
+                                $if (!last_segment | main_hit_emitter /*| main.it has subsurface TODO*/) {
                                     ReconnectionShiftResult shift_result;
                                     auto environment_connection = def(false);
 
-                                    $if(main.it.valid()) {
+                                    $if (main.it.valid()) {
                                         shift_result = reconnect_shift(previous_main_it.p(), main.it.p(), shifted.it.p(), main.it.shading().n());
                                     }
                                     $else {
@@ -855,12 +855,12 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                     };
 
                                     auto shift_failed_flag = def(false);
-                                    $if(!shift_result.success) {
+                                    $if (!shift_result.success) {
                                         shifted.alive = false;
                                         shift_failed_flag = true;
                                     };
 
-                                    $if(!shift_failed_flag) {
+                                    $if (!shift_failed_flag) {
                                         auto incoming_direction = -shifted.ray->direction();
                                         auto outgoing_direction = shift_result.wo;
 
@@ -877,7 +877,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                             });
                                         });
 
-                                        $if(shifted_bsdf_pdf <= 0.f) {
+                                        $if (shifted_bsdf_pdf <= 0.f) {
                                             shifted.alive = false;
                                         }
                                         $else {
@@ -887,12 +887,12 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
 
                                             shifted.connection_status = (uint)RayConnection::RAY_RECENTLY_CONNECTED;
 
-                                            $if(main_hit_emitter /*| has subsurface TODO*/) {
+                                            $if (main_hit_emitter /*| has subsurface TODO*/) {
                                                 SampledSpectrum shifted_emitter_radiance{swl.dimension(), 0.f};
                                                 auto shifted_lum_pdf = def(0.f);
 
-                                                $if(main.it.valid()) {
-                                                    $if(main_hit_emitter) {
+                                                $if (main.it.valid()) {
+                                                    $if (main_hit_emitter) {
                                                         // Check if correct TODO
                                                         // From shift.p -> main.p
                                                         auto eval = light_sampler()->evaluate_hit(main.it, shifted.it.p(), swl, time);
@@ -954,7 +954,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                 auto shifted_bsdf_pdf = def(0.f);
                                 auto shifted_lum_pdf = def(0.f);
                                 auto shifted_bsdf_value = SampledSpectrum{swl.dimension(), 0.f};
-                                $if(shift_result.success) {
+                                $if (shift_result.success) {
                                     shifted.pdf_div_main_pdf *= shift_result.jacobian;
                                     tangent_space_outgoing_direction = shift_result.wo;
                                 }
@@ -963,8 +963,8 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                     shift_failed_flag = true;
                                 };
 
-                                $if(!shift_failed_flag) {
-                                    $if(eval.pdf <= 0.f) {
+                                $if (!shift_failed_flag) {
+                                    $if (eval.pdf <= 0.f) {
                                         // invalid path
                                         shifted.alive = false;
                                         shift_failed_flag = true;
@@ -978,20 +978,20 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                     // Strict normal TODO
                                 };
 
-                                $if(!shift_failed_flag) {
+                                $if (!shift_failed_flag) {
                                     shifted.ray = shifted.it.spawn_ray(outgoing_direction);
                                     shifted.it = *pipeline().geometry()->intersect(shifted.ray);
 
-                                    $if(!shifted.it.valid()) {
+                                    $if (!shifted.it.valid()) {
                                         if (!pipeline().environment()) {
                                             shifted.alive = false;
                                             shift_failed_flag = true;
                                         } else {
-                                            $if(main.it.valid()) {
+                                            $if (main.it.valid()) {
                                                 shifted.alive = false;
                                                 shift_failed_flag = true;
                                             }
-                                            $elif(main_vertex_type == (uint)VertexType::VERTEX_TYPE_DIFFUSE & shifted_vertex_type == (uint)VertexType::VERTEX_TYPE_DIFFUSE) {
+                                            $elif (main_vertex_type == (uint)VertexType::VERTEX_TYPE_DIFFUSE & shifted_vertex_type == (uint)VertexType::VERTEX_TYPE_DIFFUSE) {
                                                 shifted.alive = false;
                                                 shift_failed_flag = true;
                                             }
@@ -1004,20 +1004,20 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                         }
                                     }
                                     $else {
-                                        $if(!main.it.valid()) {
+                                        $if (!main.it.valid()) {
                                             shifted.alive = false;
                                             shift_failed_flag = true;
                                         }
                                         $else {
                                             auto shifted_next_vertex_type = get_vertex_type(make_shared<Interaction>(shifted.it), swl, time);
-                                            $if(main_vertex_type == (uint)VertexType::VERTEX_TYPE_DIFFUSE &
-                                                shifted_vertex_type == (uint)VertexType::VERTEX_TYPE_DIFFUSE &
-                                                shifted_next_vertex_type == (uint)VertexType::VERTEX_TYPE_DIFFUSE) {
+                                            $if (main_vertex_type == (uint)VertexType::VERTEX_TYPE_DIFFUSE &
+                                                 shifted_vertex_type == (uint)VertexType::VERTEX_TYPE_DIFFUSE &
+                                                 shifted_next_vertex_type == (uint)VertexType::VERTEX_TYPE_DIFFUSE) {
                                                 shifted.alive = false;
                                                 shift_failed_flag = true;
                                             }
                                             $else {
-                                                $if(shifted.it.shape().has_light()) {
+                                                $if (shifted.it.shape().has_light()) {
                                                     auto eval = light_sampler()->evaluate_hit(shifted.it, shifted.ray->origin(), swl, time);
                                                     shifted_lum_pdf = eval.pdf;
                                                     shifted_emitter_radiance = eval.L;
@@ -1027,7 +1027,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                         };
                                     };
                                     // half vector shifted failed should go here
-                                    $if(shifted.alive) {
+                                    $if (shifted.alive) {
                                         main_contribution = main.weight * main_emitter_radiance /
                                                             (1.f / balance_heuristic(main_bsdf_pdf, main_lum_pdf) + shifted.pdf_div_main_pdf / balance_heuristic(shifted_bsdf_pdf, shifted_lum_pdf));
                                         shifted_contribution = shifted.weight * shifted_emitter_radiance /
@@ -1048,7 +1048,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                 };
 
                 // shift failed should go here
-                $if(!shifted.alive) {
+                $if (!shifted.alive) {
                     main_contribution = main_weight * main_emitter_radiance * main_bsdf_result.weight;
                     shifted_contribution = SampledSpectrum{swl.dimension(), 0.f};
                 };
@@ -1066,19 +1066,19 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
 
             // Stop if the base path hit the environment.
             // TODO main.rRec.type
-            $if(!main.it.valid() /*| !(main.rRec.type & RadianceQueryRecord::EIndirectSurfaceRadiance)*/) {
+            $if (!main.it.valid() /*| !(main.rRec.type & RadianceQueryRecord::EIndirectSurfaceRadiance)*/) {
                 $break;
             };
             // };
-            $if(depth >= node<GradientPathTracing>()->rr_depth()) {
+            $if (depth >= node<GradientPathTracing>()->rr_depth()) {
                 // Russian Roulette
                 auto threshold = node<GradientPathTracing>()->rr_threshold();
                 auto q = max((main.weight).max(), 0.05f);
-                $if(q < threshold & sampler()->generate_1d() >= q) {
+                $if (q < threshold & sampler()->generate_1d() >= q) {
                     $break;
                 };
 
-                $if(q < threshold) {
+                $if (q < threshold) {
                     main.weight /= q;
                     for (int i = 0; i < 4; i++) {
                         shifteds[i].weight /= q;
@@ -1151,11 +1151,11 @@ void GradientPathTracingInstance::_render_one_camera(
              */
             for (int i = 0; i < 4; i++) {
                 auto current_pixel = pixel_id + pixel_shifts[i];
-                $if(all(current_pixel >= 0u && current_pixel < resolution)) {
+                $if (all(current_pixel >= 0u && current_pixel < resolution)) {
                     auto L = pipeline().spectrum()->srgb(eval.swl, 2.f * eval.neighbor_throughput[i]);
                     // camera->film()->accumulate(current_pixel, shutter_weight * L, 1.f);
                     current_frame_buffer.accumulate(current_pixel, shutter_weight * L, 1.f);
-                    $if(eval.shift_success[i]) {
+                    $if (eval.shift_success[i]) {
                         image_buffers.at("effective")->accumulate(current_pixel, make_float3(1.f), 1.f);
                     };
                 };
@@ -1169,7 +1169,7 @@ void GradientPathTracingInstance::_render_one_camera(
                 auto current_pixel = pixel_id + (i < 2 ? make_uint2(0) : pixel_shifts[i]);
                 auto key = i % 2 == 0 ? "gradient_x" : "gradient_y";
                 auto sign = i < 2 ? 1.f : -1.f;
-                $if(all(current_pixel >= 0u && current_pixel < resolution)) {
+                $if (all(current_pixel >= 0u && current_pixel < resolution)) {
                     // Multiplied by 2 because MIS is used here
                     auto L = pipeline().spectrum()->srgb(eval.swl, sign * 2.f * (eval.gradients[i] - eval.very_direct));
                     image_buffers.at(key)->accumulate(current_pixel, shutter_weight * L, 1.f);
@@ -1184,7 +1184,7 @@ void GradientPathTracingInstance::_render_one_camera(
         auto L = current_frame_buffer.read(pixel_id);
         camera->film()->accumulate(pixel_id, L);
         auto exposure = camera->film()->node()->exposure();
-        L = L * exp2(exposure);
+        L = L * luisa::exp2(exposure);
         auto threshold = 256.f;
         auto abs_L = abs(L);
         auto strength = max(max(max(abs_L.x, abs_L.y), abs_L.z), 0.f);
