@@ -266,6 +266,13 @@ protected:
 };
 
 luisa::unique_ptr<Integrator::Instance> MegakernelWaveFront::build(Pipeline &pipeline, CommandBuffer &command_buffer) const noexcept {
+    if (auto backend = luisa::string{pipeline.device().backend_name()}; backend == "cuda" || backend == "cpu") {
+        for (auto &c : backend) { c = static_cast<char>(std::toupper(c)); }
+        LUISA_ERROR_WITH_LOCATION("The {} backend does not support the 'meagwave' integrator: "
+                                  "thread-block synchronization is not supported inside "
+                                  "ray-tracing kernels on this backend. "
+                                  "You can use 'megapath' or 'wavepath' instead.", backend);
+    }
     return luisa::make_unique<MegakernelWaveFrontInstance>(pipeline, command_buffer, this);
 }
 
