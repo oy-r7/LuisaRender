@@ -144,7 +144,7 @@ void MirrorInstance::populate_closure(Surface::Closure *closure, const Interacti
     auto &swl = closure->swl();
     auto time = closure->time();
     if (_roughness != nullptr) {
-        auto r = _roughness->evaluate(it, swl, time);
+        auto r = _roughness->evaluate(it, time);
         auto remap = node<MirrorSurface>()->remap_roughness();
         auto r2a = [](auto &&x) noexcept {
             return TrowbridgeReitzDistribution::roughness_to_alpha(x);

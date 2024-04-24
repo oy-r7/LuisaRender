@@ -279,7 +279,7 @@ void MetalInstance::populate_closure(Surface::Closure *closure, const Interactio
     auto time = closure->time();
     auto alpha = def(make_float2(.5f));
     if (_roughness != nullptr) {
-        auto r = _roughness->evaluate(it, swl, time);
+        auto r = _roughness->evaluate(it, time);
         auto remap = node<MetalSurface>()->remap_roughness();
         auto r2a = [](auto &&x) noexcept { return TrowbridgeReitzDistribution::roughness_to_alpha(x); };
         alpha = _roughness->node()->channels() == 1u ?

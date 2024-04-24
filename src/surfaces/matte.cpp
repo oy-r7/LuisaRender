@@ -123,7 +123,7 @@ void MatteInstance::populate_closure(Surface::Closure *closure, const Interactio
     auto [Kd, _] = _kd ? _kd->evaluate_albedo_spectrum(it, swl, time) :
                          Spectrum::Decode::one(swl.dimension());
     auto sigma = _sigma && !_sigma->node()->is_black() ?
-                     luisa::make_optional(saturate(_sigma->evaluate(it, swl, time).x) * 90.f) :
+                     luisa::make_optional(saturate(_sigma->evaluate(it, time).x) * 90.f) :
                      luisa::nullopt;
 
     MatteClosure::Context ctx{

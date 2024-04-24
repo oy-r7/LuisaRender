@@ -60,12 +60,10 @@ public:
         return _a->maybe_non_opaque() || _b->maybe_non_opaque();
     }
 
-    [[nodiscard]] luisa::optional<Float> evaluate_opacity(const Interaction &it,
-                                                          const SampledWavelengths &swl,
-                                                          Expr<float> time) const noexcept override {
+    [[nodiscard]] luisa::optional<Float> evaluate_opacity(const Interaction &it, Expr<float> time) const noexcept override {
         if (!maybe_non_opaque()) { return luisa::nullopt; }
-        auto opacity_a = _a->evaluate_opacity(it, swl, time).value_or(1.f);
-        auto opacity_b = _b->evaluate_opacity(it, swl, time).value_or(1.f);
+        auto opacity_a = _a->evaluate_opacity(it, time).value_or(1.f);
+        auto opacity_b = _b->evaluate_opacity(it, time).value_or(1.f);
         return opacity_a * opacity_b;
     }
 };
@@ -202,7 +200,7 @@ void MixSurfaceInstance::populate_closure(Surface::Closure *closure_in, const In
     auto closure = static_cast<MixSurfaceClosure *>(closure_in);
     auto &swl = closure->swl();
     auto time = closure->time();
-    auto ratio = _ratio == nullptr ? 0.5f : clamp(_ratio->evaluate(it, swl, time).x, 0.f, 1.f);
+    auto ratio = _ratio == nullptr ? 0.5f : clamp(_ratio->evaluate(it, time).x, 0.f, 1.f);
 
     MixSurfaceClosure::Context ctx{
         .it = it,

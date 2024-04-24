@@ -5,7 +5,6 @@
 #include <base/texture.h>
 #include <base/pipeline.h>
 #include <base/scene.h>
-#include <util/rng.h>
 
 namespace luisa::render {
 
@@ -51,10 +50,6 @@ public:
             _is_black = _is_black && texture->is_black();
             _evaluate_static = _evaluate_static && texture->evaluate_static().has_value();
         }
-        LUISA_INFO_WITH_LOCATION("ConcatTexture created with {} channels.", _channels);
-        LUISA_INFO_WITH_LOCATION("is_constant: {}", _is_constant);
-        LUISA_INFO_WITH_LOCATION("is_black: {}", _is_black);
-        LUISA_INFO_WITH_LOCATION("evaluate_static: {}", _evaluate_static);
     }
     [[nodiscard]] const auto &sub_textures() const noexcept { return _sub_textures; }
     [[nodiscard]] auto last_channel_size() const noexcept { return _last_channel_size; }
@@ -90,6 +85,13 @@ public:
         }
         return nullopt;
     }
+    [[nodiscard]] uint2 resolution() const noexcept override {
+        auto res = make_uint2(1u);
+        for (auto texture : _sub_textures) {
+            res = max(res, texture->resolution());
+        }
+        return res;
+    }
     [[nodiscard]] luisa::string_view impl_type() const noexcept override { return LUISA_RENDER_PLUGIN_NAME; }
     [[nodiscard]] uint channels() const noexcept override { return _channels; }
     [[nodiscard]] luisa::unique_ptr<Instance> build(
@@ -109,13 +111,12 @@ public:
         : Texture::Instance{pipeline, texture},
           _sub_textures{sub_textures} {}
     [[nodiscard]] Float4 evaluate(const Interaction &it,
-                                  const SampledWavelengths &swl,
                                   Expr<float> time) const noexcept override {
         auto s = def(make_float4(0.f));
         auto index = 0u;
         for (auto i = 0u; i < _sub_textures.size() - 1; i++) {
             auto sub_texture = _sub_textures[i];
-            auto v = sub_texture->evaluate(it, swl, time);
+            auto v = sub_texture->evaluate(it, time);
             switch (auto n = sub_texture->node(); n->channels()) {
                 case 1u: s[index++] = v.x; break;
                 case 2u: s[index] = v.x; s[index + 1u] = v.y; index += 2u; break;
@@ -125,7 +126,7 @@ public:
         }
         {
             auto last_sub_texture = _sub_textures.back();
-            auto v = last_sub_texture->evaluate(it, swl, time);
+            auto v = last_sub_texture->evaluate(it, time);
             switch (auto n = node<ConcatTexture>(); n->last_channel_size()) {
                 case 1u: s[index++] = v.x; break;
                 case 2u: s[index] = v.x; s[index + 1u] = v.y; index += 2u; break;

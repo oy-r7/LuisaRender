@@ -17,4 +17,4 @@ luisa_render_add_plugin(nishitasky CATEGORY texture SOURCES nishita_sky.cpp)
 target_link_libraries(luisa-render-texture-nishitasky PRIVATE luisa-render-texture-sky-precompute)
 
 # bump to normal
-luisa_render_add_plugin(bump2normal CATEGORY texture SOURCES bump2normal.cpp)
+luisa_render_add_plugin(bumptonormal CATEGORY texture SOURCES bump2normal.cpp)

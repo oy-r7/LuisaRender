@@ -948,21 +948,21 @@ public:
         auto time = closure->time();
         auto color_decode = _color ? _color->evaluate_albedo_spectrum(it, swl, time) :
                                      Spectrum::Decode::one(swl.dimension());
-        auto metallic = _metallic ? _metallic->evaluate(it, swl, time).x : 0.f;
-        auto eta = _eta ? _eta->evaluate(it, swl, time).x : 1.5f;
-        auto roughness = _roughness ? _roughness->evaluate(it, swl, time).x : .5f;
+        auto metallic = _metallic ? _metallic->evaluate(it, time).x : 0.f;
+        auto eta = _eta ? _eta->evaluate(it, time).x : 1.5f;
+        auto roughness = _roughness ? _roughness->evaluate(it, time).x : .5f;
         if (node<DisneySurface>()->remap_roughness()) {
             roughness = DisneyMicrofacetDistribution::roughness_to_alpha(roughness);
         }
-        auto specular_tint = _specular_tint ? _specular_tint->evaluate(it, swl, time).x : 0.f;
-        auto anisotropic = _anisotropic ? _anisotropic->evaluate(it, swl, time).x : 0.f;
-        auto sheen = _sheen ? _sheen->evaluate(it, swl, time).x : 0.f;
-        auto sheen_tint = _sheen_tint ? _sheen_tint->evaluate(it, swl, time).x : 0.f;
-        auto clearcoat = _clearcoat ? _clearcoat->evaluate(it, swl, time).x : 0.f;
-        auto clearcoat_gloss = _clearcoat_gloss ? _clearcoat_gloss->evaluate(it, swl, time).x : 1.f;
-        auto specular_trans = _specular_trans ? _specular_trans->evaluate(it, swl, time).x : 0.f;
-        auto flatness = _flatness ? _flatness->evaluate(it, swl, time).x : 0.f;
-        auto diffuse_trans = _diffuse_trans ? _diffuse_trans->evaluate(it, swl, time).x : 0.f;
+        auto specular_tint = _specular_tint ? _specular_tint->evaluate(it, time).x : 0.f;
+        auto anisotropic = _anisotropic ? _anisotropic->evaluate(it, time).x : 0.f;
+        auto sheen = _sheen ? _sheen->evaluate(it, time).x : 0.f;
+        auto sheen_tint = _sheen_tint ? _sheen_tint->evaluate(it, time).x : 0.f;
+        auto clearcoat = _clearcoat ? _clearcoat->evaluate(it, time).x : 0.f;
+        auto clearcoat_gloss = _clearcoat_gloss ? _clearcoat_gloss->evaluate(it, time).x : 1.f;
+        auto specular_trans = _specular_trans ? _specular_trans->evaluate(it, time).x : 0.f;
+        auto flatness = _flatness ? _flatness->evaluate(it, time).x : 0.f;
+        auto diffuse_trans = _diffuse_trans ? _diffuse_trans->evaluate(it, time).x : 0.f;
 
         DisneyContext ctx{
             .it = it,
