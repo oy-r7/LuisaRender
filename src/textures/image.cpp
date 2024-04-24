@@ -23,7 +23,7 @@ public:
     };
 
 private:
-    std::shared_future<LoadedImage> _image;
+    std::shared_future<LoadedImage> _image; // TODO: release host memory after all builds
     float2 _uv_scale;
     float2 _uv_offset;
     TextureSampler _sampler{};
@@ -113,6 +113,7 @@ public:
     [[nodiscard]] luisa::string_view impl_type() const noexcept override { return LUISA_RENDER_PLUGIN_NAME; }
     [[nodiscard]] bool is_black() const noexcept override { return _scale == 0.f; }
     [[nodiscard]] bool is_constant() const noexcept override { return false; }
+    [[nodiscard]] uint2 resolution() const noexcept override { return _image.get().size(); }
     [[nodiscard]] auto scale() const noexcept { return _scale; }
     [[nodiscard]] auto gamma() const noexcept { return _gamma; }
     [[nodiscard]] auto uv_scale() const noexcept { return _uv_scale; }

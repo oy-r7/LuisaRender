@@ -44,6 +44,7 @@ public:
     [[nodiscard]] bool is_black() const noexcept override { return _black; }
     [[nodiscard]] bool is_constant() const noexcept override { return true; }
     [[nodiscard]] bool should_inline() const noexcept { return _should_inline; }
+    [[nodiscard]] uint2 resolution() const noexcept override { return make_uint2(1u); }
     [[nodiscard]] optional<float4> evaluate_static() const noexcept override {
         return _should_inline ? luisa::make_optional(_v) : luisa::nullopt;
     }

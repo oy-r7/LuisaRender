@@ -46,6 +46,15 @@ public:
         }
         return std::min(on_channels, off_channels);
     }
+    [[nodiscard]] uint2 resolution() const noexcept override {
+        auto res = make_uint2(1u);
+        if (_on != nullptr) {
+            res = max(_on->resolution(), res);
+        } else if (_off != nullptr) {
+            res = max(_off->resolution(), res);
+        }
+        return res;
+    }
     [[nodiscard]] auto scale() const noexcept { return _scale; }
     [[nodiscard]] luisa::unique_ptr<Instance> build(
         Pipeline &pipeline, CommandBuffer &command_buffer) const noexcept override;

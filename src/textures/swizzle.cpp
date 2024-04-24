@@ -72,6 +72,7 @@ public:
     }
     [[nodiscard]] luisa::string_view impl_type() const noexcept override { return LUISA_RENDER_PLUGIN_NAME; }
     [[nodiscard]] uint channels() const noexcept override { return _swizzle >> 16u; }
+    [[nodiscard]] uint2 resolution() const noexcept override { return _base->resolution(); }
     [[nodiscard]] luisa::unique_ptr<Instance> build(
         Pipeline &pipeline, CommandBuffer &command_buffer) const noexcept override;
 };

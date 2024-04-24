@@ -5,7 +5,6 @@
 #include <base/texture.h>
 #include <base/pipeline.h>
 #include <base/scene.h>
-#include <util/rng.h>
 
 namespace luisa::render {
 
@@ -89,6 +88,13 @@ public:
             return s;
         }
         return nullopt;
+    }
+    [[nodiscard]] uint2 resolution() const noexcept override {
+        auto res = make_uint2(1u);
+        for (auto texture : _sub_textures) {
+            res = max(res, texture->resolution());
+        }
+        return res;
     }
     [[nodiscard]] luisa::string_view impl_type() const noexcept override { return LUISA_RENDER_PLUGIN_NAME; }
     [[nodiscard]] uint channels() const noexcept override { return _channels; }

@@ -33,6 +33,7 @@ public:
         return nullopt;
     }
     [[nodiscard]] luisa::string_view impl_type() const noexcept override { return LUISA_RENDER_PLUGIN_NAME; }
+    [[nodiscard]] uint2 resolution() const noexcept override { return max(_a->resolution(), _b->resolution()); }
     [[nodiscard]] uint channels() const noexcept override { return std::min(_a->channels(), _b->channels()); }
     [[nodiscard]] luisa::unique_ptr<Instance> build(
         Pipeline &pipeline, CommandBuffer &command_buffer) const noexcept override;
@@ -53,6 +54,7 @@ public:
     [[nodiscard]] Float4 evaluate(const Interaction &it,
                                   const SampledWavelengths &swl,
                                   Expr<float> time) const noexcept override {
+        // FIXME: should notice when channels are different
         return _a->evaluate(it, swl, time) * _b->evaluate(it, swl, time);
     }
 };
