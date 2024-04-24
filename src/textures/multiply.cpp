@@ -28,13 +28,29 @@ public:
         if (auto a = _a->evaluate_static(),
             b = _b->evaluate_static();
             a && b) {
+            if (_a->channels() == _b->channels()) {
+                return a.value() * b.value();
+            }
+            if (_a->channels() == 1u) {
+                a = make_float4(a.value().x);
+            } else if (_b->channels() == 1u) {
+                b = make_float4(b.value().x);
+            } else if (_a->channels() < _b->channels()) {
+                for (auto i = _a->channels(); i < _b->channels(); i++) {
+                    a.value()[i] = 1.f;
+                }
+            } else {
+                for (auto i = _b->channels(); i < _a->channels(); i++) {
+                    b.value()[i] = 1.f;
+                }
+            }
             return a.value() * b.value();
         }
         return nullopt;
     }
     [[nodiscard]] luisa::string_view impl_type() const noexcept override { return LUISA_RENDER_PLUGIN_NAME; }
     [[nodiscard]] uint2 resolution() const noexcept override { return max(_a->resolution(), _b->resolution()); }
-    [[nodiscard]] uint channels() const noexcept override { return std::min(_a->channels(), _b->channels()); }
+    [[nodiscard]] uint channels() const noexcept override { return std::max(_a->channels(), _b->channels()); }
     [[nodiscard]] luisa::unique_ptr<Instance> build(
         Pipeline &pipeline, CommandBuffer &command_buffer) const noexcept override;
 };
@@ -54,8 +70,25 @@ public:
     [[nodiscard]] Float4 evaluate(const Interaction &it,
                                   const SampledWavelengths &swl,
                                   Expr<float> time) const noexcept override {
-        // FIXME: should notice when channels are different
-        return _a->evaluate(it, swl, time) * _b->evaluate(it, swl, time);
+        auto a = _a->evaluate(it, swl, time);
+        auto b = _b->evaluate(it, swl, time);
+        if (_a->node()->channels() == _b->node()->channels()) {
+            return a * b;
+        }
+        if (_a->node()->channels() == 1u) {
+            a = make_float4(a.x);
+        } else if (_b->node()->channels() == 1u) {
+            b = make_float4(b.x);
+        } else if (_a->node()->channels() < _b->node()->channels()) {
+            for (auto i = _a->node()->channels(); i < _b->node()->channels(); i++) {
+                a[i] = 1.f;
+            }
+        } else {
+            for (auto i = _b->node()->channels(); i < _a->node()->channels(); i++) {
+                b[i] = 1.f;
+            }
+        }
+        return a * b;
     }
 };
 
