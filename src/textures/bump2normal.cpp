@@ -120,15 +120,13 @@ luisa::unique_ptr<Texture::Instance> Bump2NormalTexture::build(
     auto bump_texture = pipeline.build_texture(command_buffer, _bump_texture);
     auto resolution = bump_texture->node()->resolution();
     auto resolution_scaled = make_uint2(resolution.x * _scale, resolution.y);
-    auto res_dx = make_uint2(resolution_scaled.x - 1u, resolution_scaled.y);
-    auto res_dy = make_uint2(resolution_scaled.x, resolution_scaled.y - 1u);
     auto strength = std::min(resolution.x, resolution.y) * _scale;
 
     auto bump_scaled = pipeline.create<Image<float>>(PixelStorage::FLOAT1, resolution_scaled, 1u);
     auto gaussian_blurred = pipeline.create<Image<float>>(PixelStorage::FLOAT1, resolution_scaled, 1u);
-    auto dx = pipeline.create<Image<float>>(PixelStorage::FLOAT1, res_dx, 1u);
-    auto dy = pipeline.create<Image<float>>(PixelStorage::FLOAT1, res_dy, 1u);
-    auto normal = pipeline.create<Image<float>>(PixelStorage::FLOAT4, resolution_scaled, 1u);
+    auto dx = pipeline.create<Image<float>>(PixelStorage::FLOAT1, resolution_scaled, 1u);
+    auto dy = pipeline.create<Image<float>>(PixelStorage::FLOAT1, resolution_scaled, 1u);
+    auto normal = pipeline.create<Image<float>>(PixelStorage::FLOAT4, resolution, 1u);
 
     Kernel2D scale_kernel = [&](ImageFloat target) {
         auto dispatch_id = compute::dispatch_id().xy();
@@ -176,23 +174,31 @@ luisa::unique_ptr<Texture::Instance> Bump2NormalTexture::build(
     Kernel2D dxdy_kernel = [](ImageFloat src, ImageFloat dx, ImageFloat dy, Float strength) {
         auto id = dispatch_id().xy();
         auto resolution = dispatch_size().xy();
-        auto current = src->read(id);
-        $if (id.x + 1u < resolution.x) {
-            auto x1 = src->read(make_uint2(id.x + 1u, id.y));
-            auto dx_value = clamp(strength * (x1 - current), -5.f, 5.f);
-            dx->write(id, dx_value);
-        };
-        $if (id.y + 1u < resolution.y) {
-            auto y1 = src->read(make_uint2(id.x, id.y + 1u));
-            auto dy_value = clamp(-strength * (y1 - current), -5.f, 5.f);
-            dy.write(id, dy_value);
-        };
+
+        auto x1_id = id.x + 1u;
+        x1_id = ite(x1_id == resolution.x, resolution.x - 1u, x1_id);
+        auto x2_id = id.x - 1u;
+        x2_id = ite(x2_id == -1u, 0u, x2_id);
+        auto x1 = src->read(make_uint2(x1_id, id.y));
+        auto x2 = src->read(make_uint2(x2_id, id.y));
+        auto dx_value = clamp(strength * (x1 - x2), -5.f, 5.f);
+        dx->write(id, dx_value);
+
+        auto y1_id = id.y + 1u;
+        y1_id = ite(y1_id == resolution.y, resolution.y - 1u, y1_id);
+        auto y2_id = id.y - 1u;
+        y2_id = ite(y2_id == -1u, 0u, y2_id);
+        auto y1 = src->read(make_uint2(id.x, y1_id));
+        auto y2 = src->read(make_uint2(id.x, y2_id));
+        auto dy_value = clamp(-strength * (y1 - y2), -5.f, 5.f);
+        dy->write(id, dy_value);
     };
     auto dxdy_shader = pipeline.device().compile<2>(dxdy_kernel);
     command_buffer << dxdy_shader(*gaussian_blurred, *dx, *dy, strength).dispatch(resolution_scaled)
                    << commit();
 
-    TextureSampler sampler{TextureSampler::Filter::LINEAR_LINEAR, TextureSampler::Address::MIRROR};// TODO: area interpolation
+    // TODO: area interpolation
+    TextureSampler sampler{TextureSampler::Filter::LINEAR_LINEAR, TextureSampler::Address::MIRROR};
     auto dx_tex_id = pipeline.register_bindless(*dx, sampler);
     auto dy_tex_id = pipeline.register_bindless(*dy, sampler);
 
@@ -211,8 +217,8 @@ luisa::unique_ptr<Texture::Instance> Bump2NormalTexture::build(
         normal->write(id, normal_value);
     };
     auto normal_shader = pipeline.device().compile<2>(normal_kernel);
-    command_buffer << normal_shader(dx_tex_id, dy_tex_id, *normal).dispatch(resolution_scaled)
-                   << commit();
+    command_buffer << normal_shader(dx_tex_id, dy_tex_id, *normal).dispatch(resolution)
+                   << synchronize();
     auto normal_map_tex_id = pipeline.register_bindless(*normal, sampler);
 
     return luisa::make_unique<Bump2NormalTextureInstance>(pipeline, this, normal_map_tex_id);
