@@ -73,6 +73,14 @@ public:
         _scale = desc->property_float_or_default("scale", 1.f);
 
         _bump_texture = scene->load_texture(desc->property_node("bump"));
+        if (_bump_texture->channels() != 1u) {
+            LUISA_WARNING_WITH_LOCATION("Bump image {} should only have 1 channel. {} found.",
+                                        desc->identifier(),
+                                        _bump_texture->channels());
+        }
+        LUISA_ASSERT(all(_bump_texture->resolution() >= 3u),
+                     "Bump image {} resolution conflicts with the algorithm.",
+                     desc->identifier());
 
         _gaussian5x5 = scene->load_filter(builtin_gaussian_filter_desc(5));
         _gaussian3x3 = scene->load_filter(builtin_gaussian_filter_desc(3));
@@ -116,12 +124,6 @@ luisa::unique_ptr<Texture::Instance> Bump2NormalTexture::build(
     auto res_dy = make_uint2(resolution_scaled.x, resolution_scaled.y - 1u);
     auto strength = std::min(resolution.x, resolution.y) * _scale;
 
-    LUISA_ASSERT(bump_texture->node()->channels() == 1u,
-                 "Bump image should only have 1 channel. {} found.",
-                 bump_texture->node()->channels());
-    LUISA_ASSERT(all(resolution >= 3u),
-                 "Bump image resolution conflicts with the algorithm.");
-
     auto bump_scaled = pipeline.create<Image<float>>(PixelStorage::FLOAT1, resolution_scaled, 1u);
     auto gaussian_blurred = pipeline.create<Image<float>>(PixelStorage::FLOAT1, resolution_scaled, 1u);
     auto dx = pipeline.create<Image<float>>(PixelStorage::FLOAT1, res_dx, 1u);
@@ -134,9 +136,11 @@ luisa::unique_ptr<Texture::Instance> Bump2NormalTexture::build(
         auto uv = make_float2(
             dispatch_id.x / Float(resolution.x),
             dispatch_id.y / Float(resolution.y));
-        auto value = bump_texture->evaluate(Interaction(uv), 0.f);
+        auto value = bump_texture->evaluate(Interaction(uv), 0.f).x;
         auto value_mapped = pow(value, 2.2f);
-        target->write(dispatch_id, value_mapped);
+        auto value_float4 = def(make_float4(0.f));
+        value_float4.x = value_mapped;
+        target->write(dispatch_id, value_float4);
     };
     auto scale_shader = pipeline.device().compile<2>(scale_kernel);
     command_buffer << scale_shader(*bump_scaled).dispatch(resolution_scaled) << commit();

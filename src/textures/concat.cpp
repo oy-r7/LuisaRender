@@ -50,10 +50,6 @@ public:
             _is_black = _is_black && texture->is_black();
             _evaluate_static = _evaluate_static && texture->evaluate_static().has_value();
         }
-        LUISA_INFO_WITH_LOCATION("ConcatTexture created with {} channels.", _channels);
-        LUISA_INFO_WITH_LOCATION("is_constant: {}", _is_constant);
-        LUISA_INFO_WITH_LOCATION("is_black: {}", _is_black);
-        LUISA_INFO_WITH_LOCATION("evaluate_static: {}", _evaluate_static);
     }
     [[nodiscard]] const auto &sub_textures() const noexcept { return _sub_textures; }
     [[nodiscard]] auto last_channel_size() const noexcept { return _last_channel_size; }
