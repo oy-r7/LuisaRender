@@ -115,13 +115,12 @@ public:
         : Texture::Instance{pipeline, texture},
           _sub_textures{sub_textures} {}
     [[nodiscard]] Float4 evaluate(const Interaction &it,
-                                  const SampledWavelengths &swl,
                                   Expr<float> time) const noexcept override {
         auto s = def(make_float4(0.f));
         auto index = 0u;
         for (auto i = 0u; i < _sub_textures.size() - 1; i++) {
             auto sub_texture = _sub_textures[i];
-            auto v = sub_texture->evaluate(it, swl, time);
+            auto v = sub_texture->evaluate(it, time);
             switch (auto n = sub_texture->node(); n->channels()) {
                 case 1u: s[index++] = v.x; break;
                 case 2u: s[index] = v.x; s[index + 1u] = v.y; index += 2u; break;
@@ -131,7 +130,7 @@ public:
         }
         {
             auto last_sub_texture = _sub_textures.back();
-            auto v = last_sub_texture->evaluate(it, swl, time);
+            auto v = last_sub_texture->evaluate(it, time);
             switch (auto n = node<ConcatTexture>(); n->last_channel_size()) {
                 case 1u: s[index++] = v.x; break;
                 case 2u: s[index] = v.x; s[index + 1u] = v.y; index += 2u; break;

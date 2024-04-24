@@ -484,8 +484,8 @@ void LayeredSurfaceInstance::populate_closure(Surface::Closure *closure_in, cons
     auto closure = static_cast<LayeredSurfaceClosure *>(closure_in);
     auto &swl = closure->swl();
     auto time = closure->time();
-    auto thickness = _thickness ? max(_thickness->evaluate(it, swl, time).x, std::numeric_limits<float>::min()) : 1e-2f;
-    auto g = _g ? _g->evaluate(it, swl, time).x : 0.f;
+    auto thickness = _thickness ? max(_thickness->evaluate(it, time).x, std::numeric_limits<float>::min()) : 1e-2f;
+    auto g = _g ? _g->evaluate(it, time).x : 0.f;
     auto [albedo, _] = _albedo ? _albedo->evaluate_albedo_spectrum(it, swl, time) : Spectrum::Decode::one(swl.dimension());
     auto max_depth = node<LayeredSurface>()->max_depth();
     auto samples = node<LayeredSurface>()->samples();

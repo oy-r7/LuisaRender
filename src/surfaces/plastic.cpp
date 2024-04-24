@@ -264,19 +264,19 @@ void PlasticInstance::populate_closure(Surface::Closure *closure, const Interact
     auto time = closure->time();
     auto roughness = def(make_float2(0.f));
     if (_roughness != nullptr) {
-        auto r = _roughness->evaluate(it, swl, time);
+        auto r = _roughness->evaluate(it, time);
         auto remap = node<PlasticSurface>()->remap_roughness();
         auto r2a = [](auto &&x) noexcept { return TrowbridgeReitzDistribution::roughness_to_alpha(x); };
         roughness = _roughness->node()->channels() == 1u ?
                         (remap ? make_float2(r2a(r.x)) : r.xx()) :
                         (remap ? r2a(r.xy()) : r.xy());
     }
-    auto eta = (_eta ? _eta->evaluate(it, swl, time).x : 1.5f) / eta_i;
+    auto eta = (_eta ? _eta->evaluate(it, time).x : 1.5f) / eta_i;
     auto [Kd, Kd_lum] = _kd ? _kd->evaluate_albedo_spectrum(it, swl, time) :
                               Spectrum::Decode::one(swl.dimension());
     auto [sigma_a, sigma_a_lum] = _sigma_a ? _sigma_a->evaluate_albedo_spectrum(it, swl, time) :
                                              Spectrum::Decode::zero(swl.dimension());
-    auto thickness = _thickness ? _thickness->evaluate(it, swl, time).x : 1.f;
+    auto thickness = _thickness ? _thickness->evaluate(it, time).x : 1.f;
     auto scaled_sigma_a = sigma_a * thickness;
     auto average_transmittance = exp(-2.f * sigma_a_lum * thickness);
     // Difference from the Tungsten renderer:

@@ -131,10 +131,7 @@ public:
         [[nodiscard]] auto &pipeline() const noexcept { return _pipeline; }
 
         [[nodiscard]] virtual bool maybe_non_opaque() const noexcept { return false; }
-        [[nodiscard]] virtual luisa::optional<Float> evaluate_opacity(
-            const Interaction &it,
-            const SampledWavelengths &swl,
-            Expr<float> time) const noexcept { return luisa::nullopt; }
+        [[nodiscard]] virtual luisa::optional<Float> evaluate_opacity(const Interaction &it, Expr<float> time) const noexcept { return luisa::nullopt; }
 
         void closure(PolymorphicCall<Closure> &call,
                      const Interaction &it, const SampledWavelengths &swl,
@@ -190,12 +187,11 @@ public:
         }
 
         [[nodiscard]] luisa::optional<Float> evaluate_opacity(const Interaction &it,
-                                                              const SampledWavelengths &swl,
                                                               Expr<float> time) const noexcept override {
             if (!maybe_non_opaque()) { return luisa::nullopt; }
-            auto base_alpha = BaseInstance::evaluate_opacity(it, swl, time).value_or(1.f);
+            auto base_alpha = BaseInstance::evaluate_opacity(it, time).value_or(1.f);
             auto c = this->_decide_alpha_channel();
-            return base_alpha * _opacity->evaluate(it, swl, time)[c];
+            return base_alpha * _opacity->evaluate(it, time)[c];
         }
     };
 
@@ -253,7 +249,7 @@ public:
             auto &swl = closure->swl();
             auto time = closure->time();
 
-            auto normal_local = 2.f * _map->evaluate(it, swl, time).xyz() - 1.f;
+            auto normal_local = 2.f * _map->evaluate(it, time).xyz() - 1.f;
             if (_strength != 1.f) { normal_local *= make_float3(_strength, _strength, 1.f); }
             auto mapped_it = it;
             auto normal = it.shading().local_to_world(normal_local);

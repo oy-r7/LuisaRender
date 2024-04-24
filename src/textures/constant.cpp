@@ -72,7 +72,6 @@ public:
         }
     }
     [[nodiscard]] Float4 evaluate(const Interaction &it,
-                                  const SampledWavelengths &swl,
                                   Expr<float> time) const noexcept override {
         if (auto texture = node<ConstantTexture>();
             texture->should_inline()) { return texture->v(); }

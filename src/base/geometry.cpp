@@ -174,7 +174,7 @@ Bool Geometry::_alpha_skip(const Var<Ray> &ray, const Var<SurfaceHit> &hit) cons
                     surface->maybe_non_opaque()) {
                     $case(i) {
                         // TODO: pass the correct swl and time
-                        if (auto opacity = surface->evaluate_opacity(*it, _pipeline.spectrum()->sample(.5f), 0.f)) {
+                        if (auto opacity = surface->evaluate_opacity(*it, 0.f)) {
                             skip = u > *opacity;
                         } else {
                             skip = false;

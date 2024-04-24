@@ -247,7 +247,7 @@ void GlassInstance::populate_closure(Surface::Closure *closure, const Interactio
     auto &swl = closure->swl();
     auto time = closure->time();
     if (_roughness != nullptr) {
-        auto r = _roughness->evaluate(it, swl, time);
+        auto r = _roughness->evaluate(it, time);
         auto remap = node<GlassSurface>()->remap_roughness();
         auto r2a = [](auto &&x) noexcept { return TrowbridgeReitzDistribution::roughness_to_alpha(x); };
         alpha = _roughness->node()->channels() == 1u ?
@@ -268,9 +268,9 @@ void GlassInstance::populate_closure(Surface::Closure *closure, const Interactio
     if (_eta != nullptr) {
         if (_eta->node()->channels() == 1u ||
             pipeline().spectrum()->node()->is_fixed()) {
-            eta = _eta->evaluate(it, swl, time).x;
+            eta = _eta->evaluate(it, time).x;
         } else {
-            auto e = _eta->evaluate(it, swl, time).xyz();
+            auto e = _eta->evaluate(it, time).xyz();
             auto inv_bb = sqr(1.f / fraunhofer_wavelengths);
             auto m = make_float3x3(make_float3(1.f), inv_bb, sqr(inv_bb));
             auto c = inverse(m) * e;

@@ -50,7 +50,7 @@ public:
         [[nodiscard]] auto node() const noexcept { return static_cast<const T *>(_texture); }
         [[nodiscard]] auto &pipeline() const noexcept { return _pipeline; }
         [[nodiscard]] virtual Float4 evaluate(
-            const Interaction &it, const SampledWavelengths &swl, Expr<float> time) const noexcept = 0;
+            const Interaction &it, Expr<float> time) const noexcept = 0;
         [[nodiscard]] virtual Spectrum::Decode evaluate_albedo_spectrum(
             const Interaction &it, const SampledWavelengths &swl, Expr<float> time) const noexcept;
         [[nodiscard]] virtual Spectrum::Decode evaluate_unbounded_spectrum(

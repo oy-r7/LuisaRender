@@ -63,9 +63,8 @@ public:
                          const Texture::Instance *base) noexcept
         : Texture::Instance{pipeline, node}, _base{base} {}
     [[nodiscard]] Float4 evaluate(const Interaction &it,
-                                  const SampledWavelengths &swl,
                                   Expr<float> time) const noexcept override {
-        return _base->evaluate(it, swl, time) * node<ScaleTexture>()->scale() + node<ScaleTexture>()->offset();
+        return _base->evaluate(it, time) * node<ScaleTexture>()->scale() + node<ScaleTexture>()->offset();
     }
 };
 

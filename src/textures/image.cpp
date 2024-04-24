@@ -164,7 +164,7 @@ public:
         : Texture::Instance{pipeline, texture},
           _texture_id{texture_id} {}
     [[nodiscard]] Float4 evaluate(
-        const Interaction &it, const SampledWavelengths &swl, Expr<float> time) const noexcept override {
+        const Interaction &it, Expr<float> time) const noexcept override {
         auto uv = _compute_uv(it);
         auto v = pipeline().tex2d(_texture_id).sample(uv);// TODO: LOD
         return _decode(v);

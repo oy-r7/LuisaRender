@@ -164,7 +164,6 @@ public:
         };
     }
     [[nodiscard]] Float4 evaluate(const Interaction &it,
-                                  const SampledWavelengths &swl,
                                   Expr<float> time) const noexcept override {
         if (_impl == nullptr) {
             _impl = luisa::make_unique<Callable<float3(float2)>>(_eval_impl());

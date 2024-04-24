@@ -68,10 +68,9 @@ public:
                             const Texture::Instance *b) noexcept
         : Texture::Instance{pipeline, node}, _a{a}, _b{b} {}
     [[nodiscard]] Float4 evaluate(const Interaction &it,
-                                  const SampledWavelengths &swl,
                                   Expr<float> time) const noexcept override {
-        auto a = _a->evaluate(it, swl, time);
-        auto b = _b->evaluate(it, swl, time);
+        auto a = _a->evaluate(it, time);
+        auto b = _b->evaluate(it, time);
         if (_a->node()->channels() == _b->node()->channels()) {
             return a * b;
         }

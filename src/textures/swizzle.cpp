@@ -87,9 +87,8 @@ public:
                            const Texture::Instance *base) noexcept
         : Texture::Instance{pipeline, node}, _base{base} {}
     [[nodiscard]] Float4 evaluate(const Interaction &it,
-                                  const SampledWavelengths &swl,
                                   Expr<float> time) const noexcept override {
-        auto v = _base->evaluate(it, swl, time);
+        auto v = _base->evaluate(it, time);
         switch (auto n = node<SwizzleTexture>(); n->channels()) {
             case 1u: return make_float4(v[n->swizzle(0u)]);
             case 2u: return make_float4(v[n->swizzle(0u)], v[n->swizzle(1u)], 0.0f, 1.0f);
