@@ -55,7 +55,7 @@ public:
                       _bump->evaluate(Interaction{it.uv() - make_float2(step, 0.f)}, time).x;
             auto dy = _bump->evaluate(Interaction{it.uv() + make_float2(0.f, step)}, time).x -
                       _bump->evaluate(Interaction{it.uv() - make_float2(0.f, step)}, time).x;
-            n = normalize(make_float3(dx / (2.f * step), dy / (2.f * step), 1.f));
+            n = normalize(make_float3(dx / (2.f * step), -dy / (2.f * step), 1.f));
         };
         return make_float4(n * 0.5f + 0.5f, 1.f);
     }
