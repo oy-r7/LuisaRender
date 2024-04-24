@@ -117,9 +117,12 @@ public:
 
 luisa::unique_ptr<Texture::Instance> Bump2NormalTexture::build(
     Pipeline &pipeline, CommandBuffer &command_buffer) const noexcept {
+
+    Clock clk;
+
     auto bump_texture = pipeline.build_texture(command_buffer, _bump_texture);
     auto resolution = bump_texture->node()->resolution();
-    auto resolution_scaled = make_uint2(resolution.x * _scale, resolution.y);
+    auto resolution_scaled = make_uint2(resolution.x * _scale, resolution.y * _scale);
     auto strength = std::min(resolution.x, resolution.y) * _scale;
 
     auto bump_scaled = pipeline.create<Image<float>>(PixelStorage::FLOAT1, resolution_scaled, 1u);
@@ -134,11 +137,8 @@ luisa::unique_ptr<Texture::Instance> Bump2NormalTexture::build(
         auto uv = make_float2(
             dispatch_id.x / Float(resolution.x),
             dispatch_id.y / Float(resolution.y));
-        auto value = bump_texture->evaluate(Interaction(uv), 0.f).x;
-        auto value_mapped = pow(value, 2.2f);
-        auto value_float4 = def(make_float4(0.f));
-        value_float4.x = value_mapped;
-        target->write(dispatch_id, value_float4);
+        auto value = bump_texture->evaluate(Interaction(uv), 0.f);
+        target->write(dispatch_id, value);
     };
     auto scale_shader = pipeline.device().compile<2>(scale_kernel);
     command_buffer << scale_shader(*bump_scaled).dispatch(resolution_scaled) << commit();
@@ -221,6 +221,7 @@ luisa::unique_ptr<Texture::Instance> Bump2NormalTexture::build(
                    << synchronize();
     auto normal_map_tex_id = pipeline.register_bindless(*normal, sampler);
 
+    LUISA_INFO_WITH_LOCATION("Bump2NormalTextureInstance build time: {} ms", clk.toc());
     return luisa::make_unique<Bump2NormalTextureInstance>(pipeline, this, normal_map_tex_id);
 }
 
