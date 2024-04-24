@@ -212,7 +212,7 @@ luisa::unique_ptr<Texture::Instance> Bump2NormalTexture::build(
     };
     auto normal_shader = pipeline.device().compile<2>(normal_kernel);
     command_buffer << normal_shader(dx_tex_id, dy_tex_id, *normal).dispatch(resolution_scaled)
-                   << commit();
+                   << synchronize();
     auto normal_map_tex_id = pipeline.register_bindless(*normal, sampler);
 
     return luisa::make_unique<Bump2NormalTextureInstance>(pipeline, this, normal_map_tex_id);
