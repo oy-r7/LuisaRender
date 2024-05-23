@@ -776,7 +776,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                 main.add_radiance(main_emitter_radiance * main_weight * main_bsdf_result.sample.eval.f);
             }
 
-            $for (i, 4) {
+            for (auto &&i : dsl::dynamic_range(4u)) {
                 auto shifted = load_ray_state(i);
 
                 SampledSpectrum shifted_emitter_radiance{swl.dimension(), 0.f};
@@ -1112,9 +1112,6 @@ void GradientPathTracingInstance::_render_one_camera(
     }
     // This is sum(x^2)/spp. if Var(mean(x)) is need, it is sum(x^2)/(n(n-1)) - mean(x)^2/(n-1)
     image_buffers.emplace("variance", luisa::make_unique<ImageBuffer>(pipeline(), resolution));
-    image_buffers.emplace("variance_effective", luisa::make_unique<ImageBuffer>(pipeline(), resolution));
-    // Effective spps of G-PT
-    image_buffers.emplace("effective", luisa::make_unique<ImageBuffer>(pipeline(), resolution));
 
     auto clear_image_buffer = [&] {
         for (auto &[_, buffer] : image_buffers) {
@@ -1155,9 +1152,6 @@ void GradientPathTracingInstance::_render_one_camera(
                     auto L = pipeline().spectrum()->srgb(eval.swl, 2.f * eval.neighbor_throughput[i]);
                     // camera->film()->accumulate(current_pixel, shutter_weight * L, 1.f);
                     current_frame_buffer.accumulate(current_pixel, shutter_weight * L, 1.f);
-                    $if (eval.shift_success[i]) {
-                        image_buffers.at("effective")->accumulate(current_pixel, make_float3(1.f), 1.f);
-                    };
                 };
             }
             auto L = pipeline().spectrum()->srgb(eval.swl, 8.f * eval.very_direct + 2.f * eval.throughput);
