@@ -246,6 +246,8 @@ private:
         {
             ImGui::Text("Display FPS: %.2f", ImGui::GetIO().Framerate);
             ImGui::SliderFloat("Exposure", &_exposure, -10.f, 10.f);
+            ImGui::SameLine();
+            if (ImGui::Button("Reset")) { _exposure = 0.f; }
             constexpr const char *const tone_mapping_names[] = {"None", "Uncharted2", "ACES"};
             ImGui::Combo("Tone Mapping", &_tone_mapping, tone_mapping_names, std::size(tone_mapping_names));
             constexpr const char *const fit_names[] = {"Fill", "Fit", "Stretch"};
