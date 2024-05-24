@@ -73,7 +73,8 @@ private:
     Buffer<uint4> _instance_buffer;
     float3 _world_min;
     float3 _world_max;
-    uint _triangle_count{};// for debug
+    uint _triangle_count{};
+    uint _instanced_triangle_count{};
     bool _any_non_opaque{false};
 
 private:

@@ -23,7 +23,7 @@ public:
     };
 
 private:
-    std::shared_future<LoadedImage> _image; // TODO: release host memory after all builds
+    std::shared_future<LoadedImage> _image;// TODO: release host memory after all builds
     float2 _uv_scale;
     float2 _uv_offset;
     TextureSampler _sampler{};
@@ -35,7 +35,11 @@ private:
 private:
     void _load_image(std::filesystem::path path) noexcept {
         _image = global_thread_pool().async([path = std::move(path)] {
-            return LoadedImage::load(path);
+            auto image = LoadedImage::load(path);
+            LUISA_ASSERT(all(image.size() > 0u),
+                         "Invalid image resolution for '{}'.",
+                         path.string());
+            return image;
         });
     }
 

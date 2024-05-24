@@ -18,9 +18,10 @@ void Geometry::build(CommandBuffer &command_buffer,
         _world_max[i] = -std::numeric_limits<float>::max();
         _world_min[i] = std::numeric_limits<float>::max();
     }
-    _triangle_count = 0u;
+    _instanced_triangle_count = 0u;
     for (auto shape : shapes) { _process_shape(command_buffer, shape, init_time, nullptr); }
-    LUISA_INFO_WITH_LOCATION("Geometry built with {} triangles.", _triangle_count);
+    LUISA_INFO_WITH_LOCATION("Geometry built with {} unique triangles ({} instanced).",
+                             _triangle_count, _instanced_triangle_count);
     _instance_buffer = _pipeline.device().create_buffer<uint4>(_instances.size());
     command_buffer << _instance_buffer.copy_from(_instances.data())
                    << _accel.build();
@@ -57,6 +58,7 @@ void Geometry::_process_shape(
                     return mesh_iter->second;
                 }
                 // create mesh
+                _triangle_count += triangles.size();
                 auto vertex_buffer = _pipeline.create<Buffer<Vertex>>(vertices.size());
                 auto triangle_buffer = _pipeline.create<Buffer<Triangle>>(triangles.size());
                 auto mesh = _pipeline.create<Mesh>(*vertex_buffer, *triangle_buffer, shape->build_option());
@@ -151,7 +153,7 @@ void Geometry::_process_shape(
                 .instance_id = instance_id,
                 .light_tag = light_tag});
         }
-        _triangle_count += mesh.resource->triangle_count();
+        _instanced_triangle_count += mesh.resource->triangle_count();
     } else {
         _transform_tree.push(shape->transform());
         for (auto child : shape->children()) {
@@ -166,13 +168,13 @@ Bool Geometry::_alpha_skip(const Var<Ray> &ray, const Var<SurfaceHit> &hit) cons
     auto bary = make_float3(1.f - hit.bary.x - hit.bary.y, hit.bary);
     auto it = interaction(hit.inst, hit.prim, bary, -ray->direction());
     auto skip = def(true);
-    $if(it->shape().maybe_non_opaque() & it->shape().has_surface()) {
+    $if (it->shape().maybe_non_opaque() & it->shape().has_surface()) {
         auto u = xxhash32(make_uint4(hit.inst, hit.prim, compute::as<uint2>(hit.bary))) * 0x1p-32f;
-        $switch(it->shape().surface_tag()) {
+        $switch (it->shape().surface_tag()) {
             for (auto i = 0u; i < _pipeline.surfaces().size(); i++) {
                 if (auto surface = _pipeline.surfaces().impl(i);
                     surface->maybe_non_opaque()) {
-                    $case(i) {
+                    $case (i) {
                         // TODO: pass the correct swl and time
                         if (auto opacity = surface->evaluate_opacity(*it, 0.f)) {
                             skip = u > *opacity;
@@ -227,11 +229,11 @@ Var<Hit> Geometry::trace_closest(const Var<Ray> &ray_in) const noexcept {
         auto hit = _accel->intersect(ray, {});
         constexpr auto max_iterations = 100u;
         constexpr auto epsilone = 1e-5f;
-        $for(i [[maybe_unused]], max_iterations) {
-            $if(hit->miss()) { $break; };
-            $if(!this->_alpha_skip(ray, hit)) { $break; };
+        $for (i [[maybe_unused]], max_iterations) {
+            $if (hit->miss()) { $break; };
+            $if (!this->_alpha_skip(ray, hit)) { $break; };
 #ifndef NDEBUG
-            $if(i == max_iterations - 1u) {
+            $if (i == max_iterations - 1u) {
                 compute::device_log(luisa::format(
                     "ERROR: max iterations ({}) exceeded in trace closest",
                     max_iterations));
@@ -249,7 +251,7 @@ Var<Hit> Geometry::trace_closest(const Var<Ray> &ray_in) const noexcept {
         auto rq_hit =
             _accel->traverse(ray, {})
                 .on_surface_candidate([&](compute::SurfaceCandidate &c) noexcept {
-                    $if(!this->_alpha_skip(c.ray(), c.hit())) {
+                    $if (!this->_alpha_skip(c.ray(), c.hit())) {
                         c.commit();
                     };
                 })
@@ -268,7 +270,7 @@ Var<bool> Geometry::trace_any(const Var<Ray> &ray) const noexcept {
         auto rq_hit =
             _accel->traverse_any(ray, {})
                 .on_surface_candidate([&](compute::SurfaceCandidate &c) noexcept {
-                    $if(!this->_alpha_skip(c.ray(), c.hit())) {
+                    $if (!this->_alpha_skip(c.ray(), c.hit())) {
                         c.commit();
                     };
                 })
@@ -292,7 +294,7 @@ luisa::shared_ptr<Interaction> Geometry::interaction(Expr<uint> inst_id, Expr<ui
 luisa::shared_ptr<Interaction> Geometry::interaction(const Var<Ray> &ray, const Var<Hit> &hit) const noexcept {
     using namespace luisa::compute;
     Interaction it;
-    $if(!hit->miss()) {
+    $if (!hit->miss()) {
         it = *interaction(hit.inst, hit.prim,
                           make_float3(1.f - hit.bary.x - hit.bary.y, hit.bary),
                           -ray->direction());
