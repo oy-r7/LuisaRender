@@ -100,15 +100,16 @@ private:
     luisa::unique_ptr<Film::Instance> _base;
     luisa::unique_ptr<ImGuiWindow> _window;
     Image<float> _framebuffer;
-    Shader2D<int, bool, float> _blit;
+    Shader2D<int, bool, float3> _blit;
     Shader2D<Image<float>> _clear;
     Clock _clock;
     Stream *_stream{};
     ImTextureID _background{};
     mutable double _last_frame_time{};
     mutable int _tone_mapping{};
-    mutable float _exposure{};
+    mutable float3 _exposure{};
     mutable int _background_fit{};
+    mutable bool _link_rgb_exposure{true};
 
 private:
     [[nodiscard]] static auto _tone_mapping_uncharted2(Expr<float3> color) noexcept {
@@ -170,7 +171,7 @@ public:
                     .back_buffers = d->back_buffers()});
             _framebuffer = device.create_image<float>(_window->swapchain().backend_storage(), size);
             _background = reinterpret_cast<ImTextureID>(_window->register_texture(_framebuffer, TextureSampler::linear_point_zero()));
-            _blit = device.compile<2>([base = _base.get(), &framebuffer = _framebuffer](Int tonemapping, Bool ldr, Float scale) noexcept {
+            _blit = device.compile<2>([base = _base.get(), &framebuffer = _framebuffer](Int tonemapping, Bool ldr, Float3 scale) noexcept {
                 auto p = dispatch_id().xy();
                 auto color = base->read(p).average * scale;
                 $switch (tonemapping) {
@@ -231,7 +232,7 @@ private:
     }
 
     void _display() const noexcept {
-        auto scale = luisa::exp2(_exposure);
+        auto scale = _link_rgb_exposure ? make_float3(luisa::exp2(_exposure.x)) : luisa::exp2(_exposure);
         auto is_ldr = _window->framebuffer().storage() != PixelStorage::FLOAT4;
         auto size = _framebuffer.size();
         *_stream << _blit(_tone_mapping, is_ldr, scale).dispatch(size);
@@ -245,9 +246,15 @@ private:
         ImGui::Begin("Console", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
         {
             ImGui::Text("Display FPS: %.2f", ImGui::GetIO().Framerate);
-            ImGui::SliderFloat("Exposure", &_exposure, -10.f, 10.f);
+            if (_link_rgb_exposure) {
+                ImGui::SliderFloat("Exposure", &_exposure.x, -10.f, 10.f);
+            } else {
+                ImGui::SliderFloat3("Exposure", &_exposure.x, -10.f, 10.f);
+            }
             ImGui::SameLine();
-            if (ImGui::Button("Reset")) { _exposure = 0.f; }
+            ImGui::Checkbox("Link", &_link_rgb_exposure);
+            ImGui::SameLine();
+            if (ImGui::Button("Reset")) { _exposure = make_float3(); }
             constexpr const char *const tone_mapping_names[] = {"None", "Uncharted2", "ACES"};
             ImGui::Combo("Tone Mapping", &_tone_mapping, tone_mapping_names, std::size(tone_mapping_names));
             constexpr const char *const fit_names[] = {"Fill", "Fit", "Stretch"};
