@@ -2,7 +2,6 @@
 // Created by Mike Smith on 2022/11/9.
 //
 
-#include <util/u64.h>
 #include <util/rng.h>
 #include <util/sampling.h>
 #include <util/progress_bar.h>
@@ -15,8 +14,8 @@ namespace luisa::render {
 struct alignas(8) PrimarySample {
     float value;
     float value_backup;
-    uint2 last_modification;
-    uint2 modification_backup;
+    ulong last_modification;
+    ulong modification_backup;
 };
 
 }// namespace luisa::render
@@ -46,9 +45,9 @@ class PSSMLTSampler {
 public:
     struct State {
         UInt rng_state;
-        U64 current_iteration;
+        ULong current_iteration;
         Bool large_step;
-        U64 last_large_step_iteration;
+        ULong last_large_step_iteration;
         UInt chain_index;
         UInt sample_index;
         UInt initialized_dimensions;
@@ -64,9 +63,9 @@ private:
     uint _chains{};
     uint _pss_dim{};
     Buffer<uint> _rng_buffer;
-    Buffer<uint2> _current_iteration_buffer;
+    Buffer<ulong> _current_iteration_buffer;
     Buffer<uint> _large_step_and_initialized_dimensions_buffer;
-    Buffer<uint2> _last_large_step_iteration_buffer;
+    Buffer<ulong> _last_large_step_iteration_buffer;
     Buffer<PrimarySample> _primary_sample_buffer;
 
 public:
@@ -79,9 +78,9 @@ public:
         command_buffer << synchronize();
         if (auto n = next_pow2(chains); n > _rng_buffer.size()) {
             _rng_buffer = _device.create_buffer<uint>(n);
-            _current_iteration_buffer = _device.create_buffer<uint2>(n);
+            _current_iteration_buffer = _device.create_buffer<ulong>(n);
             _large_step_and_initialized_dimensions_buffer = _device.create_buffer<uint>(n);
-            _last_large_step_iteration_buffer = _device.create_buffer<uint2>(n);
+            _last_large_step_iteration_buffer = _device.create_buffer<ulong>(n);
         }
         if (auto n = next_pow2(chains * pss_dim); n > _primary_sample_buffer.size()) {
             _primary_sample_buffer = _device.create_buffer<PrimarySample>(n);
@@ -110,7 +109,7 @@ private:
             auto p = def(0.f);
             x = clamp(x, -.99999f, .99999f);
             w = -log((1.f - x) * (1.f + x));
-            $if(w < 5.f) {
+            $if (w < 5.f) {
                 w = w - 2.5f;
                 p = 2.81022636e-08f;
                 p = fma(p, w, 3.43273939e-07f);
@@ -141,28 +140,28 @@ private:
 
     [[nodiscard]] auto _sample(Expr<uint> index) noexcept {
         auto Xi = def<PrimarySample>();
-        $if(_state->initialized_dimensions <= index) {// Initialize the sample
+        $if (_state->initialized_dimensions <= index) {// Initialize the sample
             Xi.value = 0.f;
             Xi.value_backup = 0.f;
-            Xi.last_modification = make_uint2();
-            Xi.modification_backup = make_uint2();
+            Xi.last_modification = 0ull;
+            Xi.modification_backup = 0ull;
             _state->initialized_dimensions += 1u;
         }
         $else {// Load the sample
             Xi = _read_primary_sample(index);
         };
         // Reset Xi if a large step took place in the meantime
-        $if(U64{Xi.last_modification} < _state->last_large_step_iteration) {
+        $if (Xi.last_modification < _state->last_large_step_iteration) {
             Xi.value = lcg(_state->rng_state);
-            Xi.last_modification = _state->last_large_step_iteration.bits();
+            Xi.last_modification = _state->last_large_step_iteration;
         };
         // Apply remaining sequence of mutations to _sample_
         Xi->backup();
-        $if(_state->large_step) {
+        $if (_state->large_step) {
             Xi.value = lcg(_state->rng_state);
         }
         $else {
-            auto nSmall = (_state->current_iteration - U64{Xi.last_modification}).lo();
+            auto nSmall = compute::cast<uint>(_state->current_iteration - Xi.last_modification);
             // Apply _nSmall_ small step mutations
             // Sample the standard normal distribution N(0, 1)
             auto normalSample = sqrt_two * _erf_inv(2.f * lcg(_state->rng_state) - 1.f);
@@ -170,7 +169,7 @@ private:
             auto effSigma = _sigma * sqrt(cast<float>(nSmall));
             Xi.value = fract(Xi.value + normalSample * effSigma);
         };
-        Xi.last_modification = _state->current_iteration.bits();
+        Xi.last_modification = _state->current_iteration;
         // Store the sample
         _write_primary_sample(index, Xi);
         return Xi.value;
@@ -183,9 +182,9 @@ public:
     void create(Expr<uint> chain_index, Expr<uint> rng_sequence) noexcept {
         _state = luisa::make_unique<State>(State{
             .rng_state = xxhash32(rng_sequence),
-            .current_iteration = U64{0u},
+            .current_iteration = 0ull,
             .large_step = true,
-            .last_large_step_iteration = U64{0u},
+            .last_large_step_iteration = 0ull,
             .chain_index = chain_index,
             .sample_index = 0u,
             .initialized_dimensions = 0u});
@@ -198,9 +197,9 @@ public:
         auto last_large_step_iteration = _last_large_step_iteration_buffer->read(chain_index);
         _state = luisa::make_unique<State>(State{
             .rng_state = rng_state,
-            .current_iteration = U64{current_iteration},
+            .current_iteration = current_iteration,
             .large_step = (large_step_and_dimensions & 1u) != 0u,
-            .last_large_step_iteration = U64{last_large_step_iteration},
+            .last_large_step_iteration = last_large_step_iteration,
             .chain_index = chain_index,
             .sample_index = 0u,
             .initialized_dimensions = large_step_and_dimensions >> 1u});
@@ -208,10 +207,10 @@ public:
 
     void save() noexcept {
         _rng_buffer->write(_state->chain_index, _state->rng_state);
-        _current_iteration_buffer->write(_state->chain_index, _state->current_iteration.bits());
+        _current_iteration_buffer->write(_state->chain_index, _state->current_iteration);
         _large_step_and_initialized_dimensions_buffer->write(
             _state->chain_index, ite(_state->large_step, 1u, 0u) | (_state->initialized_dimensions << 1u));
-        _last_large_step_iteration_buffer->write(_state->chain_index, _state->last_large_step_iteration.bits());
+        _last_large_step_iteration_buffer->write(_state->chain_index, _state->last_large_step_iteration);
     }
 
     void accept() noexcept {
@@ -222,14 +221,14 @@ public:
     }
 
     void reject() noexcept {
-        $for(i, _state->initialized_dimensions) {
+        $for (i, _state->initialized_dimensions) {
             auto sample = _read_primary_sample(i);
-            $if(U64{sample.last_modification} == _state->current_iteration) {
+            $if (sample.last_modification == _state->current_iteration) {
                 sample->restore();
                 _write_primary_sample(i, sample);
             };
         };
-        _state->current_iteration = _state->current_iteration - 1u;
+        _state->current_iteration = _state->current_iteration - 1ull;
     }
 
     [[nodiscard]] auto large_step() const noexcept {
@@ -249,7 +248,7 @@ public:
     }
 
     void start_iteration() noexcept {
-        _state->current_iteration = _state->current_iteration + 1u;
+        _state->current_iteration = _state->current_iteration + 1ull;
         _state->large_step = lcg(_state->rng_state) < _large_step_probability;
     }
 };
@@ -352,14 +351,14 @@ private:
 
         auto ray = camera_ray;
         auto pdf_bsdf = def(1e16f);
-        $for(depth, node<PSSMLT>()->max_depth()) {
+        $for (depth, node<PSSMLT>()->max_depth()) {
 
             // trace
             auto wo = -ray->direction();
             auto it = pipeline().geometry()->intersect(ray);
 
             // miss
-            $if(!it->valid()) {
+            $if (!it->valid()) {
                 if (pipeline().environment()) {
                     auto eval = light_sampler()->evaluate_miss(ray->direction(), swl, time);
                     Li += beta * eval.L * balance_heuristic(pdf_bsdf, eval.pdf);
@@ -370,14 +369,14 @@ private:
 
             // hit light
             if (!pipeline().lights().empty()) {
-                $if(it->shape().has_light()) {
+                $if (it->shape().has_light()) {
                     auto eval = light_sampler()->evaluate_hit(*it, ray->origin(), swl, time);
                     Li += beta * eval.L * balance_heuristic(pdf_bsdf, eval.pdf);
                     is_visible_light |= depth == 0u;
                 };
             }
 
-            $if(!it->shape().has_surface()) { $break; };
+            $if (!it->shape().has_surface()) { $break; };
 
             // sample one light
             auto u_light_selection = sampler.generate_1d();
@@ -399,10 +398,10 @@ private:
             });
             call.execute([&](auto closure) noexcept {
                 if (auto dispersive = closure->is_dispersive()) {
-                    $if(*dispersive) { swl.terminate_secondary(); };
+                    $if (*dispersive) { swl.terminate_secondary(); };
                 }
                 // direct lighting
-                $if(light_sample.eval.pdf > 0.0f & !occluded) {
+                $if (light_sample.eval.pdf > 0.0f & !occluded) {
                     auto wi = light_sample.shadow_ray->direction();
                     auto eval = closure->evaluate(wo, wi);
                     auto w = balance_heuristic(light_sample.eval.pdf, eval.pdf) /
@@ -417,19 +416,19 @@ private:
                 beta *= w * surface_sample.eval.f;
                 // apply eta scale
                 auto eta = closure->eta().value_or(1.f);
-                $switch(surface_sample.event) {
-                    $case(Surface::event_enter) { eta_scale = sqr(eta); };
-                    $case(Surface::event_exit) { eta_scale = sqr(1.f / eta); };
+                $switch (surface_sample.event) {
+                    $case (Surface::event_enter) { eta_scale = sqr(eta); };
+                    $case (Surface::event_exit) { eta_scale = sqr(1.f / eta); };
                 };
             });
             beta = zero_if_any_nan(beta);
-            $if(beta.all([](auto b) noexcept { return b <= 0.f; })) { $break; };
+            $if (beta.all([](auto b) noexcept { return b <= 0.f; })) { $break; };
             auto rr_depth = node<PSSMLT>()->rr_depth();
             auto rr_threshold = node<PSSMLT>()->rr_threshold();
             auto q = max(beta.max() * eta_scale, .05f);
-            $if(depth + 1u >= rr_depth) {
+            $if (depth + 1u >= rr_depth) {
                 auto u = sampler.generate_1d();
-                $if(q < rr_threshold & u >= q) { $break; };
+                $if (q < rr_threshold & u >= q) { $break; };
                 beta *= ite(q < rr_threshold, 1.0f / q, 1.f);
             };
         };
@@ -502,7 +501,7 @@ private:
             global_accept_counter = {pipeline().device(), 1u};
             clear_statistics = pipeline().device().compile<1u>([&] {
                 auto i = dispatch_x();
-                $if(i == 0u) { global_accept_counter.clear(i); };
+                $if (i == 0u) { global_accept_counter.clear(i); };
                 accept_counter.clear(i);
                 mutation_counter.clear(i);
             });
@@ -549,7 +548,7 @@ private:
 
             auto accum = [&accumulate_buffer, resolution](Expr<uint2> p, Expr<float3> L) noexcept {
                 auto offset = (p.y * resolution.x + p.x) * 3u;
-                $if(!any(isnan(L))) {
+                $if (!any(isnan(L))) {
                     for (auto i = 0u; i < 3u; i++) {
                         accumulate_buffer->atomic(offset + i).fetch_add(L[i]);
                     }
@@ -568,7 +567,7 @@ private:
             mutation_counter.record(pixel_index_new);
 
             // Accept or reject the proposal
-            $if(lcg(seed) < accept) {
+            $if (lcg(seed) < accept) {
                 position_buffer->write(chain_id, p_new);
                 radiance_and_contribution_buffer->write(
                     chain_id, make_float4(shutter_weight * L_new, y_new));

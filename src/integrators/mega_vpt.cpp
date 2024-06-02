@@ -54,7 +54,7 @@ protected:
     [[nodiscard]] UInt event(const SampledWavelengths &swl, luisa::shared_ptr<Interaction> it, Expr<float> time,
                              Expr<float3> wo, Expr<float3> wi) const noexcept {
         Float3 wo_local, wi_local;
-        $if(it->shape().has_surface()) {
+        $if (it->shape().has_surface()) {
             PolymorphicCall<Surface::Closure> call;
             pipeline().surfaces().dispatch(it->shape().surface_tag(), [&](auto surface) noexcept {
                 surface->closure(call, *it, swl, wo, 1.f, time);
@@ -109,13 +109,13 @@ protected:
         auto ray = camera_ray;
         // TODO: bug in initialization of medium tracker where the angle between shared edge is small
         auto depth_track = def<uint>(0u);
-        $while(true) {
+        $while (true) {
             auto it = pipeline().geometry()->intersect(ray);
-            $if(!it->valid()) { $break; };
+            $if (!it->valid()) { $break; };
 
             device_log("depth={}", depth_track + 1u);
 
-            $if(it->shape().has_medium()) {
+            $if (it->shape().has_medium()) {
                 auto surface_tag = it->shape().surface_tag();
                 auto medium_tag = it->shape().medium_tag();
 
@@ -130,13 +130,13 @@ protected:
                 pipeline().surfaces().dispatch(surface_tag, [&](auto surface) {
                     device_log("surface event={}", surface_event);
                     // update medium tracker
-                    $switch(surface_event) {
-                        $case(Surface::event_enter) {
+                    $switch (surface_event) {
+                        $case (Surface::event_enter) {
                             medium_tracker.enter(medium_priority, medium_info);
                             device_log("enter: priority={}, medium_tag={}", medium_priority, medium_tag);
                         };
-                        $case(Surface::event_exit) {
-                            $if(medium_tracker.exist(medium_priority, medium_info)) {
+                        $case (Surface::event_exit) {
+                            $if (medium_tracker.exist(medium_priority, medium_info)) {
                                 medium_tracker.exit(medium_priority, medium_info);
                                 device_log("exit exist: priority={}, medium_tag={}", medium_priority, medium_tag);
                             }
@@ -165,11 +165,11 @@ protected:
         auto eta_scale = def(1.f);
         auto depth = def(0u);
         auto max_depth = node<MegakernelVolumePathTracing>()->max_depth();
-        $while(depth < max_depth) {
+        $while (depth < max_depth) {
             auto eta = def(1.f);
             auto u_rr = def(0.f);
             Bool scattered = def(false);
-            $if(depth + 1u >= rr_depth) { u_rr = sampler()->generate_1d(); };
+            $if (depth + 1u >= rr_depth) { u_rr = sampler()->generate_1d(); };
 
             // trace
             auto it = pipeline().geometry()->intersect(ray);
@@ -177,18 +177,19 @@ protected:
 
             device_log("depth={}", depth + 1u);
             device_log("before: medium tracker size={}, priority={}, tag={}",
-                                                       medium_tracker.size(), medium_tracker.current().priority, medium_tracker.current().medium_tag);
+                       medium_tracker.size(), medium_tracker.current().priority, medium_tracker.current().medium_tag);
             device_log("it->p(): ({}, {}, {})", it->p().x, it->p().y, it->p().z);
 
             // sample the participating medium
-            $if(!medium_tracker.vacuum()) {
+            $if (!medium_tracker.vacuum()) {
                 // Sample the participating medium
                 auto t_max = ite(it->valid(), length(it->p() - ray->origin()), Interaction::default_t_max);
 
                 // Initialize RNG for sampling the majorant transmittance
-                auto hash0 = U64(as<UInt2>(sampler()->generate_2d()));
-                auto hash1 = U64(as<UInt2>(sampler()->generate_2d()));
-                PCG32 rng(hash0, hash1);
+                auto u1 = as<uint2>(sampler()->generate_2d());
+                auto u2 = as<uint2>(sampler()->generate_2d());
+                PCG32 rng((cast<ulong>(u1.x) << 32ull) | cast<ulong>(u1.y),
+                          (cast<ulong>(u2.x) << 32ull) | cast<ulong>(u2.y));
 
                 // Sample medium using delta tracking
                 Float u = sampler()->generate_1d();
@@ -208,13 +209,13 @@ protected:
                                 Bool ans = def(true);
 
                                 // Handle medium scattering event for ray
-                                $if(beta.all([](auto b) noexcept { return b <= 0.f; })) {
+                                $if (beta.all([](auto b) noexcept { return b <= 0.f; })) {
                                     terminated = true;
                                     ans = false;
                                 }
                                 $else {
                                     // Add emission from medium scattering event
-                                    $if((depth < max_depth) & !closure_p->le().is_zero()) {
+                                    $if ((depth < max_depth) & !closure_p->le().is_zero()) {
                                         // Compute beta' at new path vertex
                                         Float pdf = sigma_maj[0u] * T_maj[0u];
                                         SampledSpectrum betap = beta * T_maj / pdf;
@@ -236,18 +237,18 @@ protected:
                                     Float um = rng.uniform_float();
                                     UInt medium_event = Medium::sample_event(pAbsorb, pScatter, pNull, um);
                                     // don't use switch-case here, because of local variable definition
-                                    $if(medium_event == Medium::event_absorb) {
+                                    $if (medium_event == Medium::event_absorb) {
                                         device_log("Absorb");
                                         // Handle absorption along ray path
                                         terminated = true;
                                         ans = false;
                                     }
-                                    $elif(medium_event == Medium::event_scatter) {
+                                    $elif (medium_event == Medium::event_scatter) {
                                         device_log("Scatter");
                                         // Handle scattering along ray path
                                         // Stop path sampling if maximum depth has been reached
                                         depth += 1u;
-                                        $if(depth >= max_depth) {
+                                        $if (depth >= max_depth) {
                                             terminated = true;
                                             ans = false;
                                         }
@@ -258,7 +259,7 @@ protected:
                                             r_u *= T_maj * closure_p->sigma_s() / pdf;
 
                                             Bool Ld_medium_zero = def(false);
-                                            $if(!beta.is_zero() & !r_u.is_zero()) {
+                                            $if (!beta.is_zero() & !r_u.is_zero()) {
                                                 // Sample direct lighting at volume scattering event
                                                 // generate uniform samples
                                                 auto u_light_selection = sampler()->generate_1d();
@@ -270,7 +271,7 @@ protected:
                                                     light_it, u_light_selection, u_light_surface, swl, time);
 
                                                 // direct lighting
-                                                $if(light_sample.eval.pdf > 0.0f) {
+                                                $if (light_sample.eval.pdf > 0.0f) {
                                                     auto wo = closure->ray()->direction();
                                                     auto wi = light_sample.shadow_ray->direction();
 
@@ -279,9 +280,9 @@ protected:
 
                                                     //                                                            PCG32 rng(U64(make_uint2(xxhash32(light_ray.origin()), xxhash32(light_ray.direction()))));
 
-                                                    $while(any(light_ray->direction() != 0.f)) {
+                                                    $while (any(light_ray->direction() != 0.f)) {
                                                         auto si = pipeline().geometry()->intersect(light_ray);
-                                                        $if(si->valid() & si->shape().has_surface()) {
+                                                        $if (si->valid() & si->shape().has_surface()) {
                                                             Ld_medium_zero = true;
                                                             $break;
                                                         };
@@ -314,17 +315,17 @@ protected:
                                                         r_u *= T_maj / T_maj[0u];
 
                                                         // Generate next ray segment or return final transmittance
-                                                        $if(!T_ray.is_zero()) {
+                                                        $if (!T_ray.is_zero()) {
                                                             Ld_medium_zero = true;
                                                             $break;
                                                         };
-                                                        $if(!si->valid()) {
+                                                        $if (!si->valid()) {
                                                             $break;
                                                         };
                                                         light_ray = si->spawn_ray_to(light_sample.shadow_ray->origin());
                                                     };
 
-                                                    $if(!Ld_medium_zero) {
+                                                    $if (!Ld_medium_zero) {
                                                         auto phase_function = closure->phase_function();
                                                         auto f_hat = phase_function->p(wo, wi);
                                                         auto scatter_pdf = phase_function->pdf(wo, wi);
@@ -339,7 +340,7 @@ protected:
                                                 // Sample new direction at real scattering event
                                                 Float2 u = sampler()->generate_2d();
                                                 auto ps = closure->phase_function()->sample_p(-ray->direction(), u);
-                                                $if(!ps.valid | (ps.pdf == 0.f)) {
+                                                $if (!ps.valid | (ps.pdf == 0.f)) {
                                                     terminated = true;
                                                 }
                                                 $else {
@@ -357,13 +358,13 @@ protected:
                                             ans = false;
                                         };
                                     }
-                                    $elif(medium_event == Medium::event_null) {
+                                    $elif (medium_event == Medium::event_null) {
                                         device_log("Null");
                                         // Handle null scattering along ray path
                                         SampledSpectrum sigma_n = max(sigma_maj - closure_p->sigma_a() - closure_p->sigma_s(), 0.f);
                                         Float pdf = T_maj[0u] * sigma_n[0u];
                                         beta *= T_maj * sigma_n / pdf;
-                                        $if(pdf == 0.f) {
+                                        $if (pdf == 0.f) {
                                             beta = 0.f;
                                         };
                                         r_u *= T_maj * sigma_n / pdf;
@@ -375,11 +376,11 @@ protected:
                             });
 
                         // Handle terminated, scattered, and unscattered medium rays
-                        $if(terminated | beta.all(le_zero) | r_u.all(le_zero)) {
+                        $if (terminated | beta.all(le_zero) | r_u.all(le_zero)) {
                             // Terminate path sampling if ray has been terminated
                             $break;
                         };
-                        $if(scattered) {
+                        $if (scattered) {
                             $continue;
                         };
 
@@ -395,10 +396,10 @@ protected:
 
             // sample the surface
             // miss, environment light
-            $if(!it->valid()) {
+            $if (!it->valid()) {
                 if (pipeline().environment()) {
                     auto eval = light_sampler()->evaluate_miss(ray->direction(), swl, time);
-                    $if(depth == 0u) {
+                    $if (depth == 0u) {
                         Li += beta * eval.L / r_u.average();
                     }
                     $else {
@@ -411,9 +412,9 @@ protected:
 
             // hit light
             if (!pipeline().lights().empty()) {
-                $if(it->shape().has_light()) {
+                $if (it->shape().has_light()) {
                     auto eval = light_sampler()->evaluate_hit(*it, ray->origin(), swl, time);
-                    $if(depth == 0u) {
+                    $if (depth == 0u) {
                         Li += beta * eval.L / r_u.average();
                     }
                     $else {
@@ -424,7 +425,7 @@ protected:
             }
 
             // hit ordinary surface
-            $if(!it->shape().has_surface()) {
+            $if (!it->shape().has_surface()) {
                 // TODO: if shape has no surface, we cannot get the right normal direction
                 //      so we cannot deal with medium tracker correctly (enter/exit)
                 ray = it->spawn_ray(ray->direction());
@@ -451,7 +452,7 @@ protected:
                     auto closure = medium->closure(ray, swl, time);
                     eta_next = closure->eta();
                 });
-                $if(has_medium) {
+                $if (has_medium) {
                     pipeline().media().dispatch(medium_tag, [&](auto medium) {
                         medium_priority = medium->priority();
                         auto closure = medium->closure(ray, swl, time);
@@ -473,18 +474,18 @@ protected:
                 call.execute([&](auto closure) noexcept {
                     // apply opacity map
                     UInt surface_event;
-                    $if(medium_tag != medium_tracker.current().medium_tag) {
+                    $if (medium_tag != medium_tracker.current().medium_tag) {
                         surface_event = surface_event_skip;
                         ray = it->spawn_ray(ray->direction());
                         pdf_bsdf = 1e16f;
                     }
                     $else {
                         if (auto dispersive = closure->is_dispersive()) {
-                            $if(*dispersive) { swl.terminate_secondary(); };
+                            $if (*dispersive) { swl.terminate_secondary(); };
                         }
                         // direct lighting
                         // TODO: add medium to direct lighting
-                        $if(light_sample.eval.pdf > 0.0f & !occluded) {
+                        $if (light_sample.eval.pdf > 0.0f & !occluded) {
                             auto wi = light_sample.shadow_ray->direction();
                             auto eval = closure->evaluate(wo, wi);
                             auto w = balance_heuristic(light_sample.eval.pdf, eval.pdf) /
@@ -501,24 +502,24 @@ protected:
                         beta *= w * surface_sample.eval.f;
                         r_l = r_u * w;
                         // apply eta scale & update medium tracker
-                        $if(has_medium) {
-                            $switch(surface_event) {
-                                $case(Surface::event_enter) {
+                        $if (has_medium) {
+                            $switch (surface_event) {
+                                $case (Surface::event_enter) {
                                     eta_scale = sqr(eta_next / eta);
                                 };
-                                $case(Surface::event_exit) {
+                                $case (Surface::event_exit) {
                                     eta_scale = sqr(eta / eta_next);
                                 };
                             };
                         };
                     };
 
-                    $if(has_medium) {
-                        $switch(surface_event) {
-                            $case(Surface::event_enter) {
+                    $if (has_medium) {
+                        $switch (surface_event) {
+                            $case (Surface::event_enter) {
                                 medium_tracker.enter(medium_priority, medium_info);
                             };
-                            $case(Surface::event_exit) {
+                            $case (Surface::event_exit) {
                                 medium_tracker.exit(medium_priority, medium_info);
                             };
                         };
@@ -527,12 +528,12 @@ protected:
             };
 
             beta = zero_if_any_nan(beta);
-            $if(beta.all(le_zero)) { $break; };
+            $if (beta.all(le_zero)) { $break; };
             // rr
             auto rr_threshold = node<MegakernelVolumePathTracing>()->rr_threshold();
             auto q = max(beta.max() * eta_scale, .05f);
-            $if(depth + 1u >= rr_depth) {
-                $if(q < rr_threshold & u_rr >= q) { $break; };
+            $if (depth + 1u >= rr_depth) {
+                $if (q < rr_threshold & u_rr >= q) { $break; };
                 beta *= ite(q < rr_threshold, 1.0f / q, 1.f);
             };
             depth += 1u;
@@ -541,7 +542,7 @@ protected:
                 "scattered={}, beta=({}, {}, {}), pdf_bsdf={}, Li: ({}, {}, {})",
                 scattered, beta[0u], beta[1u], beta[2u], pdf_bsdf, Li[0u], Li[1u], Li[2u]);
             device_log("after: medium tracker size={}, priority={}, tag={}",
-                                                       medium_tracker.size(), medium_tracker.current().priority, medium_tracker.current().medium_tag);
+                       medium_tracker.size(), medium_tracker.current().priority, medium_tracker.current().medium_tag);
         };
         return spectrum->srgb(swl, Li);
     }
