@@ -7,7 +7,6 @@
 #include <dsl/syntax.h>
 #include <util/spec.h>
 #include <util/imageio.h>
-#include <util/half.h>
 #include <base/scene_node.h>
 #include <base/spectrum.h>
 

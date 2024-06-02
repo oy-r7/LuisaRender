@@ -7,11 +7,9 @@
 #include <tinyexr.h>
 #include <stb/stb_image.h>
 #include <stb/stb_image_write.h>
-#include <stb/stb_image_resize2.h>
 
 #include <core/logging.h>
 #include <util/imageio.h>
-#include <util/half.h>
 
 namespace luisa::render {
 
@@ -236,16 +234,15 @@ LoadedImage LoadedImage::_load_half(const std::filesystem::path &path, LoadedIma
             "Failed to load HALF image '{}': {}.",
             filename, stbi_failure_reason());
     }
-    auto half_pixels = luisa::allocate_with_allocator<uint16_t>(w * h * expected_channels);
+    auto half_pixels = luisa::allocate_with_allocator<luisa::half>(w * h * expected_channels);
     for (auto i = 0u; i < w * h * expected_channels; i++) {
-        half_pixels[i] = float_to_half(
-            reinterpret_cast<const float *>(pixels)[i]);
+        half_pixels[i] = static_cast<luisa::half>(reinterpret_cast<const float *>(pixels)[i]);
     }
     stbi_image_free(pixels);
     return {
         half_pixels, storage, make_uint2(w, h),
         [](void *p) noexcept {
-            luisa::deallocate_with_allocator(static_cast<uint16_t *>(p));
+            luisa::deallocate_with_allocator(static_cast<luisa::half *>(p));
         }};
 }
 

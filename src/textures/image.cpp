@@ -4,10 +4,8 @@
 
 #include <util/thread_pool.h>
 #include <util/imageio.h>
-#include <util/half.h>
 #include <base/texture.h>
 #include <base/pipeline.h>
-#include <base/scene.h>
 
 namespace luisa::render {
 

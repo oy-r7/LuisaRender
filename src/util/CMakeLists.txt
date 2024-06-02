@@ -5,7 +5,6 @@ add_library(luisa-render-util SHARED
         xform.cpp xform.h
         spec.cpp spec.h
         colorspace.h
-        half.cpp half.h
         u64.cpp u64.h
         rng.cpp rng.h
         ies.cpp ies.h
