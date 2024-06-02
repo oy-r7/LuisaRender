@@ -21,7 +21,10 @@ public:
     enum struct ToneMapping : uint8_t {
         NONE,
         UNCHARTED2,
-        ACES
+        ACES,
+        AgX,
+        AgX_GOLDEN,
+        AgX_PUNCHY,
     };
 
 private:
@@ -55,6 +58,20 @@ public:
               for (auto &c : tm) { c = static_cast<char>(std::tolower(c)); }
               if (tm == "uncharted2") { return ToneMapping::UNCHARTED2; }
               if (tm == "aces") { return ToneMapping::ACES; }
+              if (tm == "agx") {
+                  auto look = desc->property_string_or_default("look", "default");
+                  for (auto &c : look) { c = static_cast<char>(std::tolower(c)); }
+                  if (look == "golden") { return ToneMapping::AgX_GOLDEN; }
+                  if (look == "punchy") { return ToneMapping::AgX_PUNCHY; }
+                  if (!look.empty() || look != "default") {
+                      LUISA_WARNING_WITH_LOCATION(
+                          "Unknown AgX look: \"{}\". "
+                          "Available options are: \"default\", \"golden\", \"punchy\". "
+                          "Falling back to default look.",
+                          look);
+                  }
+                  return ToneMapping::AgX;
+              }
               if (tm != "none") {
                   LUISA_WARNING_WITH_LOCATION(
                       "Unknown tone mapping operator: \"{}\". "
@@ -133,6 +150,114 @@ private:
         constexpr auto e = 0.14f;
         return (color * (a * color + b)) / (color * (c * color + d) + e);
     }
+    [[nodiscard]] static auto _tone_mapping_agx(Expr<float3> color, luisa::string_view look) noexcept {
+        // The following source code is adapted from
+        //   https://iolite-engine.com/blog_posts/minimal_agx_implementation
+        // which is licensed under the MIT License:
+        //
+        // MIT License
+        //
+        // Copyright (c) 2024 Missing Deadlines (Benjamin Wrensch)
+        //
+        // Permission is hereby granted, free of charge, to any person obtaining a copy
+        // of this software and associated documentation files (the "Software"), to deal
+        // in the Software without restriction, including without limitation the rights
+        // to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+        // copies of the Software, and to permit persons to whom the Software is
+        // furnished to do so, subject to the following conditions:
+        //
+        // The above copyright notice and this permission notice shall be included in
+        // all copies or substantial portions of the Software.
+        //
+        // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+        // IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+        // FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+        // AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+        // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+        // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        // SOFTWARE.
+
+        // All values used to derive this implementation are sourced from Troy’s initial AgX implementation/OCIO config file available here:
+        //   https://github.com/sobotka/AgX
+
+// 0: Default, 1: Golden, 2: Punchy
+#define AGX_LOOK 0
+
+        // Mean error^2: 1.85907662e-06
+        static Callable agxDefaultContrastApprox = [](Float3 x) noexcept {
+            auto x2 = x * x;
+            auto x4 = x2 * x2;
+            auto x6 = x4 * x2;
+            return -17.86f * x6 * x + 78.01f * x6 - 126.7f * x4 * x + 92.06f * x4 - 28.72f * x2 * x + 4.361f * x2 - 0.1718f * x + 0.002857f;
+        };
+
+        static Callable agx = [](Float3 val) noexcept {
+            const auto agx_mat = make_float3x3(
+                0.842479062253094, 0.0423282422610123, 0.0423756549057051,
+                0.0784335999999992, 0.878468636469772, 0.0784336,
+                0.0792237451477643, 0.0791661274605434, 0.879142973793104);
+
+            const auto min_ev = -12.47393f;
+            const auto max_ev = 4.026069f;
+
+            // Input transform (inset)
+            val = agx_mat * val;
+
+            // Log2 space encoding
+            val = clamp(log2(val), min_ev, max_ev);
+            val = (val - min_ev) / (max_ev - min_ev);
+
+            // Apply sigmoid function approximation
+            val = agxDefaultContrastApprox(val);
+
+            return val;
+        };
+
+        static Callable agxEotf = [](Float3 val) noexcept {
+            const auto agx_mat_inv = make_float3x3(
+                +1.19687900512017f, -0.0528968517574562f, -0.0529716355144438f,
+                -0.0980208811401368f, +1.15190312990417f, -0.0980434501171241f,
+                -0.0990297440797205f, -0.0989611768448433f, +1.15107367264116f);
+
+            // Inverse input transform (outset)
+            val = agx_mat_inv * val;
+
+            // sRGB IEC 61966-2-1 2.2 Exponent Reference EOTF Display
+            // NOTE: We're linearizing the output here. Comment/adjust when
+            // *not* using a sRGB render target
+            val = pow(val, 2.2f);
+
+            return val;
+        };
+
+        Callable agxLook = [look](Float3 val) noexcept {
+            const auto lw = make_float3(0.2126, 0.7152, 0.0722);
+            auto luma = dot(val, lw);
+
+            // Default
+            auto offset = make_float3(0.f);
+            auto slope = make_float3(1.f);
+            auto power = make_float3(1.f);
+            auto sat = 1.f;
+
+            if (look == "golden") {
+                // Golden
+                slope = make_float3(1.f, .9f, .5f);
+                power = make_float3(.8f);
+                sat = .8f;
+            } else if (look == "punchy") {
+                // Punchy
+                slope = make_float3(1.f);
+                power = make_float3(1.35f);
+                sat = 1.4f;
+            }
+
+            // ASC CDL
+            val = pow(val * slope + offset, power);
+            return luma + sat * (val - luma);
+        };
+        return agxEotf(agxLook(agx(color)));// TODO: implement AgX tone mapping
+    }
     [[nodiscard]] static auto _linear_to_srgb(Expr<float3> color) noexcept {
         return ite(color <= .0031308f,
                    color * 12.92f,
@@ -178,6 +303,9 @@ public:
                     $case (static_cast<int>(Display::ToneMapping::NONE)) {};
                     $case (static_cast<int>(Display::ToneMapping::UNCHARTED2)) { color = _tone_mapping_uncharted2(color); };
                     $case (static_cast<int>(Display::ToneMapping::ACES)) { color = _tone_mapping_aces(color); };
+                    $case (static_cast<int>(Display::ToneMapping::AgX)) { color = _tone_mapping_agx(color, "default"); };
+                    $case (static_cast<int>(Display::ToneMapping::AgX_GOLDEN)) { color = _tone_mapping_agx(color, "golden"); };
+                    $case (static_cast<int>(Display::ToneMapping::AgX_PUNCHY)) { color = _tone_mapping_agx(color, "punchy"); };
                     $default { unreachable(); };
                 };
                 $if (ldr) {// LDR
@@ -255,7 +383,7 @@ private:
             ImGui::Checkbox("Link", &_link_rgb_exposure);
             ImGui::SameLine();
             if (ImGui::Button("Reset")) { _exposure = make_float3(); }
-            constexpr const char *const tone_mapping_names[] = {"None", "Uncharted2", "ACES"};
+            constexpr const char *const tone_mapping_names[] = {"None", "Uncharted2", "ACES", "AgX", "AgX (Golden)", "AgX (Punchy)"};
             ImGui::Combo("Tone Mapping", &_tone_mapping, tone_mapping_names, std::size(tone_mapping_names));
             constexpr const char *const fit_names[] = {"Fill", "Fit", "Stretch"};
             ImGui::Combo("Background Fit", &_background_fit, fit_names, std::size(fit_names));
