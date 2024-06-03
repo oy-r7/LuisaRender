@@ -117,14 +117,16 @@ private:
     luisa::unique_ptr<Film::Instance> _base;
     luisa::unique_ptr<ImGuiWindow> _window;
     Image<float> _framebuffer;
-    Shader2D<int, bool, float3> _blit;
+    Shader2D<int, bool, float3, float3> _blit;
     Shader2D<Image<float>> _clear;
     Clock _clock;
     Stream *_stream{};
     ImTextureID _background{};
-    mutable double _last_frame_time{};
-    mutable int _tone_mapping{};
     mutable float3 _exposure{};
+    mutable double _last_frame_time{};
+    mutable float2 _white_balance{};
+    mutable float _brightness{};
+    mutable int _tone_mapping{};
     mutable int _background_fit{};
     mutable bool _link_rgb_exposure{true};
 
@@ -179,9 +181,6 @@ private:
 
         // All values used to derive this implementation are sourced from Troy’s initial AgX implementation/OCIO config file available here:
         //   https://github.com/sobotka/AgX
-
-// 0: Default, 1: Golden, 2: Punchy
-#define AGX_LOOK 0
 
         // Mean error^2: 1.85907662e-06
         static Callable agxDefaultContrastApprox = [](Float3 x) noexcept {
@@ -263,6 +262,11 @@ private:
                    color * 12.92f,
                    1.055f * pow(color, 1.f / 2.4f) - .055f);
     }
+    [[nodiscard]] static auto _apply_white_balance(Expr<float3> rgb, Expr<float> brightness, Expr<float> temperature, Expr<float> tint) noexcept {
+        auto lab = cie_xyz_to_lab(linear_srgb_to_cie_xyz(rgb));
+        auto v = make_float3(clamp(lab.x + brightness, 0.f, 100.f), lab.y + tint, lab.z + temperature);
+        return cie_xyz_to_linear_srgb(lab_to_cie_xyz(v));
+    }
 
 public:
     DisplayInstance(const Pipeline &pipeline, const Display *film,
@@ -296,9 +300,13 @@ public:
                     .back_buffers = d->back_buffers()});
             _framebuffer = device.create_image<float>(_window->swapchain().backend_storage(), size);
             _background = reinterpret_cast<ImTextureID>(_window->register_texture(_framebuffer, TextureSampler::linear_point_zero()));
-            _blit = device.compile<2>([base = _base.get(), &framebuffer = _framebuffer](Int tonemapping, Bool ldr, Float3 scale) noexcept {
+            _blit = device.compile<2>([base = _base.get(), &framebuffer = _framebuffer](Int tonemapping, Bool ldr, Float3 scale, Float3 white_balance) noexcept {
                 auto p = dispatch_id().xy();
                 auto color = base->read(p).average * scale;
+                $if (any(white_balance != 0.f)) {
+                    color = _apply_white_balance(color, white_balance.z, white_balance.x, white_balance.y);
+                };
+                color = max(color, 0.f);
                 $switch (tonemapping) {
                     $case (static_cast<int>(Display::ToneMapping::NONE)) {};
                     $case (static_cast<int>(Display::ToneMapping::UNCHARTED2)) { color = _tone_mapping_uncharted2(color); };
@@ -363,7 +371,7 @@ private:
         auto scale = _link_rgb_exposure ? make_float3(luisa::exp2(_exposure.x)) : luisa::exp2(_exposure);
         auto is_ldr = _window->framebuffer().storage() != PixelStorage::FLOAT4;
         auto size = _framebuffer.size();
-        *_stream << _blit(_tone_mapping, is_ldr, scale).dispatch(size);
+        *_stream << _blit(_tone_mapping, is_ldr, scale, make_float3(_white_balance, _brightness)).dispatch(size);
         auto viewport = ImGui::GetMainViewport();
         auto bg_size = _compute_background_size(viewport, _background_fit);
         auto p_min = make_float2(viewport->Pos.x, viewport->Pos.y) +
@@ -373,7 +381,11 @@ private:
                                                  ImVec2{p_min.x + bg_size.x, p_min.y + bg_size.y});
         ImGui::Begin("Console", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
         {
-            ImGui::Text("Display FPS: %.2f", ImGui::GetIO().Framerate);
+            ImGui::Text("Render: %ux%u", node()->resolution().x, node()->resolution().y);
+            ImGui::Text("Display: %ux%u (%.2ffps)", size.x, size.y, ImGui::GetIO().Framerate);
+            // Exposure
+            if (ImGui::Button("Reset##Exposure")) { _exposure = make_float3(); }
+            ImGui::SameLine();
             if (_link_rgb_exposure) {
                 ImGui::SliderFloat("Exposure", &_exposure.x, -10.f, 10.f);
             } else {
@@ -381,8 +393,18 @@ private:
             }
             ImGui::SameLine();
             ImGui::Checkbox("Link", &_link_rgb_exposure);
+            // Brightness
+            if (ImGui::Button("Reset##Brightness")) { _brightness = 0.f; }
             ImGui::SameLine();
-            if (ImGui::Button("Reset")) { _exposure = make_float3(); }
+            ImGui::SliderFloat("Brightness", &_brightness, -100.f, 100.f);
+            // Temperature
+            if (ImGui::Button("Reset##Temperature")) { _white_balance.x = 0.f; }
+            ImGui::SameLine();
+            ImGui::SliderFloat("Temperature", &_white_balance.x, -100.f, 100.f);
+            // Tint
+            if (ImGui::Button("Reset##Tint")) { _white_balance.y = 0.f; }
+            ImGui::SameLine();
+            ImGui::SliderFloat("Tint", &_white_balance.y, -100.f, 100.f);
             constexpr const char *const tone_mapping_names[] = {"None", "Uncharted2", "ACES", "AgX", "AgX (Golden)", "AgX (Punchy)"};
             ImGui::Combo("Tone Mapping", &_tone_mapping, tone_mapping_names, std::size(tone_mapping_names));
             constexpr const char *const fit_names[] = {"Fill", "Fit", "Stretch"};
