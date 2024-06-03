@@ -52,6 +52,7 @@ public:
     [[nodiscard]] virtual luisa::unique_ptr<Instance> build(
         Pipeline &pipeline, CommandBuffer &command_buffer) const noexcept = 0;
     [[nodiscard]] virtual float clamp() const noexcept { return 1024.0f; }
+    [[nodiscard]] virtual bool is_display() const noexcept { return false; }
 };
 
 }// namespace luisa::render

@@ -38,13 +38,15 @@ void ProgressiveIntegrator::Instance::render(Stream &stream) noexcept {
         auto resolution = camera->film()->node()->resolution();
         auto pixel_count = resolution.x * resolution.y;
         camera->film()->prepare(command_buffer);
-        _render_one_camera(command_buffer, camera);
-        luisa::vector<float4> pixels(pixel_count);
-        camera->film()->download(command_buffer, pixels.data());
-        command_buffer << compute::synchronize();
+        {
+            _render_one_camera(command_buffer, camera);
+            luisa::vector<float4> pixels(pixel_count);
+            camera->film()->download(command_buffer, pixels.data());
+            command_buffer << compute::synchronize();
+            auto film_path = camera->node()->file();
+            save_image(film_path, reinterpret_cast<const float *>(pixels.data()), resolution);
+        }
         camera->film()->release();
-        auto film_path = camera->node()->file();
-        save_image(film_path, reinterpret_cast<const float *>(pixels.data()), resolution);
     }
 }
 

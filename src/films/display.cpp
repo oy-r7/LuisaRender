@@ -52,8 +52,7 @@ public:
           _tone_mapping{[desc] {
               auto tm = desc->property_string_or_default(
                   "tone_mapping", lazy_construct([desc]() noexcept {
-                      return desc->property_string_or_default(
-                          "tonemapping", "none");
+                      return desc->property_string_or_default("tonemapping", "AgX");
                   }));
               for (auto &c : tm) { c = static_cast<char>(std::tolower(c)); }
               if (tm == "uncharted2") { return ToneMapping::UNCHARTED2; }
@@ -104,6 +103,7 @@ public:
     [[nodiscard]] auto back_buffers() const noexcept { return _back_buffers; }
     [[nodiscard]] float3 exposure() const noexcept override { return make_float3(_exposure); }
     [[nodiscard]] auto tone_mapping() const noexcept { return _tone_mapping; }
+    [[nodiscard]] bool is_display() const noexcept override { return true; }
 
     [[nodiscard]] luisa::unique_ptr<Instance> build(
         Pipeline &pipeline, CommandBuffer &command_buffer) const noexcept override;
@@ -129,6 +129,7 @@ private:
     mutable int _tone_mapping{};
     mutable int _background_fit{};
     mutable bool _link_rgb_exposure{true};
+    bool _rendering_done{};
 
 private:
     [[nodiscard]] static auto _tone_mapping_uncharted2(Expr<float3> color) noexcept {
@@ -284,6 +285,7 @@ public:
 
     void prepare(CommandBuffer &command_buffer) noexcept override {
         _base->prepare(command_buffer);
+        _rendering_done = false;
         auto &&device = pipeline().device();
         auto size = node()->resolution();
         if (!_window) {
@@ -339,6 +341,12 @@ public:
     }
 
     void release() noexcept override {
+        _rendering_done = true;
+        CommandBuffer command_buffer{_stream};
+        while (!_window->should_close()) {
+            this->show(command_buffer);
+        }
+        command_buffer << synchronize();
         _window = nullptr;
         _framebuffer = {};
         _base->release();
@@ -427,7 +435,7 @@ private:
         if (auto current_time = _clock.toc();
             current_time - _last_frame_time >= interval) {
             _last_frame_time = current_time;
-            if (_window->should_close()) {
+            if (!_rendering_done && _window->should_close()) {
                 command_buffer << synchronize();
                 exit(0);// FIXME: exit gracefully
             }
