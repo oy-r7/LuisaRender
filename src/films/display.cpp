@@ -263,9 +263,11 @@ private:
                    1.055f * pow(color, 1.f / 2.4f) - .055f);
     }
     [[nodiscard]] static auto _apply_white_balance(Expr<float3> rgb, Expr<float> brightness, Expr<float> temperature, Expr<float> tint) noexcept {
-        auto lab = cie_xyz_to_lab(linear_srgb_to_cie_xyz(rgb));
+        auto xyz = linear_srgb_to_cie_xyz(rgb);
+        auto lum = max(xyz.y, 1.f);
+        auto lab = cie_xyz_to_lab(xyz / lum);
         auto v = make_float3(clamp(lab.x + brightness, 0.f, 100.f), lab.y + tint, lab.z + temperature);
-        return cie_xyz_to_linear_srgb(lab_to_cie_xyz(v));
+        return cie_xyz_to_linear_srgb(lab_to_cie_xyz(v) * lum);
     }
 
 public:
@@ -381,13 +383,19 @@ private:
                                                  ImVec2{p_min.x + bg_size.x, p_min.y + bg_size.y});
         ImGui::Begin("Console", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
         {
-            ImGui::Text("Render: %ux%u", node()->resolution().x, node()->resolution().y);
-            ImGui::Text("Display: %ux%u (%.2ffps)", size.x, size.y, ImGui::GetIO().Framerate);
+            ImGui::Text("Render: %ux%u",
+                        node()->resolution().x,
+                        node()->resolution().y);
+            ImGui::Text("Display: %ux%u (%.2ffps)",
+                        static_cast<uint>(viewport->Size.x),
+                        static_cast<uint>(viewport->Size.y),
+                        ImGui::GetIO().Framerate);
             // Exposure
             if (ImGui::Button("Reset##Exposure")) { _exposure = make_float3(); }
             ImGui::SameLine();
             if (_link_rgb_exposure) {
                 ImGui::SliderFloat("Exposure", &_exposure.x, -10.f, 10.f);
+                _exposure = make_float3(_exposure.x);
             } else {
                 ImGui::SliderFloat3("Exposure", &_exposure.x, -10.f, 10.f);
             }
