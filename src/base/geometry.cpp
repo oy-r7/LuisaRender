@@ -224,7 +224,8 @@ Var<Hit> Geometry::trace_closest(const Var<Ray> &ray_in) const noexcept {
         return Var<Hit>{hit.inst, hit.prim, hit.bary};
     }
     // TODO: DirectX has bug with ray query, so we manually march the ray here
-    if (_pipeline.device().backend_name() == "dx") {
+    // TODO: Fallback backend has not implemented ray query yet, so we manually march the ray here
+    if (_pipeline.device().backend_name() == "dx" || _pipeline.device().backend_name() == "fallback") {
         auto ray = ray_in;
         auto hit = _accel->intersect(ray, {});
         constexpr auto max_iterations = 100u;
@@ -261,10 +262,36 @@ Var<Hit> Geometry::trace_closest(const Var<Ray> &ray_in) const noexcept {
     return impl(ray_in);
 }
 
-Var<bool> Geometry::trace_any(const Var<Ray> &ray) const noexcept {
+Var<bool> Geometry::trace_any(const Var<Ray> &ray_in) const noexcept {
     if (!_any_non_opaque) {
         // happy path
-        return _accel->intersect_any(ray, {});
+        return _accel->intersect_any(ray_in, {});
+    }
+    // TODO: Fallback backend has not implemented ray query yet, so we manually march the ray here
+    if (_pipeline.device().backend_name() == "fallback") {
+        auto ray = ray_in;
+        auto any_hit = def(false);
+        constexpr auto max_iterations = 100u;
+        constexpr auto epsilone = 1e-5f;
+        $for (i [[maybe_unused]], max_iterations) {
+            auto hit = _accel->intersect(ray, {});
+            $if (hit->miss()) { $break; };
+            $if (!this->_alpha_skip(ray, hit)) {
+                any_hit = true;
+                $break;
+            };
+#ifndef NDEBUG
+            $if (i == max_iterations - 1u) {
+                compute::device_log(luisa::format(
+                    "ERROR: max iterations ({}) exceeded in trace any",
+                    max_iterations));
+            };
+#endif
+            ray = compute::make_ray(ray->origin(), ray->direction(),
+                                    hit.committed_ray_t + epsilone,
+                                    ray->t_max());
+        };
+        return any_hit;
     }
     Callable impl = [this](Var<Ray> ray) noexcept {
         auto rq_hit =
@@ -277,7 +304,7 @@ Var<bool> Geometry::trace_any(const Var<Ray> &ray) const noexcept {
                 .trace();
         return !rq_hit->miss();
     };
-    return impl(ray);
+    return impl(ray_in);
 }
 
 luisa::shared_ptr<Interaction> Geometry::interaction(Expr<uint> inst_id, Expr<uint> prim_id,
