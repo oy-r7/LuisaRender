@@ -7,7 +7,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-22.04 ]
+        os: [ ubuntu-24.04, ubuntu-24.04-arm, ubuntu-22.04 ]
         compiler:
           - { name: gcc, version: 11 }
           # - { name: gcc, version: 12 }
@@ -46,7 +46,7 @@ jobs:
           wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.0-1_all.deb
           sudo dpkg -i cuda-keyring_1.0-1_all.deb
           sudo apt-get update
-          sudo apt-get -y install cuda-12.1
+          sudo apt-get -y install cuda-12.8
       - name: "Setup Vulkan SDK"
         uses: humbletim/setup-vulkan-sdk@v1.2.0
         with:
@@ -72,7 +72,7 @@ jobs:
           sudo cmake --install build --prefix dist -v
       - name: "Upload Artifact"
         if: matrix.config == 'Release'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: "dist/bin"
           name: LuisaRender-${{ matrix.os }}-${{ matrix.compiler.name }}-${{ matrix.compiler.version }}
@@ -81,7 +81,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ macos-13, macos-14 ]
+        os: [ macos-13, macos-14, macos-15 ]
         compiler: [ homebrew-clang ]
         config: [ Release, Debug ]
     name: "${{ matrix.os }} / ${{ matrix.config }} / ${{ matrix.compiler }}"
@@ -110,7 +110,7 @@ jobs:
           sudo cmake --install build --prefix dist -v
       - name: "Upload Artifact"
         if: matrix.config == 'Release'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: "dist/bin"
           name: LuisaRender-${{ matrix.os }}-${{ matrix.compiler }}
@@ -129,7 +129,7 @@ jobs:
         with:
           submodules: recursive
       - name: "Setup CUDA"
-        uses: Jimver/cuda-toolkit@v0.2.19
+        uses: Jimver/cuda-toolkit@v0.2.20
         with:
           cuda: 12.1.0
       - name: "Setup Ninja"
@@ -158,7 +158,7 @@ jobs:
           cmake --install build --prefix dist -v
       - name: "Upload Artifact"
         if: matrix.config == 'Release'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           path: "dist/bin"
           name: LuisaRender-windows-${{ matrix.os }}-${{ matrix.compiler }}
