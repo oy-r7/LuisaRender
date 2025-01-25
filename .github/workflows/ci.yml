@@ -41,9 +41,20 @@ jobs:
           sudo apt-get update
           sudo apt-get -y install build-essential cmake ninja-build uuid-dev libxinerama-dev libxcursor-dev libxi-dev libvulkan-dev libxkbcommon-dev
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-      - name: "Setup CUDA"
+      - name: "Download CUDA Keyring (ubuntu-24.04)"
+        if: matrix.os == 'ubuntu-24.04'
+        run: |
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.0-1_all.deb
+      - name: "Download CUDA Keyring (ubuntu-24.04-arm)"
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: |
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/arm64/cuda-keyring_1.0-1_all.deb
+      - name: "Download CUDA Keyring (ubuntu-22.04)"
+        if: matrix.os == 'ubuntu-22.04'
         run: |
           wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/cuda-keyring_1.0-1_all.deb
+      - name: "Setup CUDA"
+        run: |
           sudo dpkg -i cuda-keyring_1.0-1_all.deb
           sudo apt-get update
           sudo apt-get -y install cuda-12.8
@@ -64,7 +75,7 @@ jobs:
             export LUISA_CXX=clang++-${{ matrix.compiler.version }}
             export LUISA_FLAGS="-stdlib=libc++"
           fi
-          cmake -S . -B build -G Ninja -D CMAKE_BUILD_TYPE=${{ matrix.config }} -D CMAKE_C_COMPILER=${LUISA_CC} -D CMAKE_CXX_COMPILER=${LUISA_CXX} -D CMAKE_CXX_FLAGS="${LUISA_FLAGS}"
+          cmake -S . -B build -G Ninja -D CMAKE_BUILD_TYPE=${{ matrix.config }} -D CMAKE_C_COMPILER=${LUISA_CC} -D CMAKE_CXX_COMPILER=${LUISA_CXX} -D CMAKE_CXX_FLAGS="${LUISA_FLAGS}" -D CMAKE_DISABLE_PRECOMPILE_HEADERS=ON
           cmake --build build
       - name: "Install"
         if: matrix.config == 'Release'
@@ -129,7 +140,7 @@ jobs:
         with:
           submodules: recursive
       - name: "Setup CUDA"
-        uses: Jimver/cuda-toolkit@v0.2.20
+        uses: Jimver/cuda-toolkit@master
         with:
           cuda: 12.1.0
       - name: "Setup Ninja"
