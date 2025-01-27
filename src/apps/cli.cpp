@@ -64,6 +64,7 @@
     cli.add_option("", "D", "define", "Parameter definitions to override scene description macros.",
                    cxxopts::value<std::vector<luisa::string>>()->default_value("<none>"), "<key>=<value>");
     cli.add_option("", "h", "help", "Display this help message", cxxopts::value<bool>()->default_value("false"), "");
+    cli.add_option("", "v", "verbose", "Enable verbose logging", cxxopts::value<bool>()->default_value("false"), "");
     cli.allow_unrecognised_options();
     cli.positional_help("<file>");
     cli.parse_positional("scene");
@@ -163,6 +164,8 @@ int main(int argc, char *argv[]) {
     }
 
     auto options = parse_cli_options(argc, argv);
+    if (options["verbose"].as<bool>()) { log_level_verbose(); }
+
     auto backend = options["backend"].as<luisa::string>();
     auto index = options["device"].as<int32_t>();
     auto path = options["scene"].as<std::filesystem::path>();
