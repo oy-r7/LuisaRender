@@ -69,6 +69,7 @@ jobs:
             export LUISA_CC=gcc-${{ matrix.compiler.version }}
             export LUISA_CXX=g++-${{ matrix.compiler.version }}
             export LUISA_FLAGS=""
+            export CMAKE_BUILD_PARALLEL_LEVEL=1 # to avoid OOM on GitHub Actions
           else
             export LUISA_CC=clang-${{ matrix.compiler.version }}
             export LUISA_CXX=clang++-${{ matrix.compiler.version }}
