@@ -57,6 +57,7 @@ jobs:
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
           sudo apt-get update
           sudo apt-get -y install cuda-12.8
+          sudo apt-get -y clean # save some space
 #      - name: "Setup Vulkan SDK"
 #        uses: humbletim/setup-vulkan-sdk@v1.2.0
 #        with:
@@ -69,9 +70,6 @@ jobs:
             export LUISA_CC=gcc-${{ matrix.compiler.version }}
             export LUISA_CXX=g++-${{ matrix.compiler.version }}
             export LUISA_FLAGS=""
-            if [ "${{ matrix.config }}" = "Debug" ]; then
-              export CMAKE_BUILD_PARALLEL_LEVEL=1 # to avoid OOM on GitHub Actions
-            fi
           else
             export LUISA_CC=clang-${{ matrix.compiler.version }}
             export LUISA_CXX=clang++-${{ matrix.compiler.version }}
