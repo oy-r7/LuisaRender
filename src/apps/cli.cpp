@@ -59,7 +59,7 @@
 [[nodiscard]] auto parse_cli_options(int argc, const char *const *argv) noexcept {
     cxxopts::Options cli{"luisa-render-cli"};
     cli.add_option("", "b", "backend", "Compute backend name", cxxopts::value<luisa::string>(), "<backend>");
-    cli.add_option("", "d", "device", "Compute device index", cxxopts::value<int32_t>()->default_value("-1"), "<index>");
+    cli.add_option("", "d", "device", "Compute device index", cxxopts::value<std::size_t>()->default_value("0"), "<index>");
     cli.add_option("", "", "scene", "Path to scene description file", cxxopts::value<std::filesystem::path>(), "<file>");
     cli.add_option("", "D", "define", "Parameter definitions to override scene description macros.",
                    cxxopts::value<std::vector<luisa::string>>()->default_value("<none>"), "<key>=<value>");
@@ -167,11 +167,12 @@ int main(int argc, char *argv[]) {
     if (options["verbose"].as<bool>()) { log_level_verbose(); }
 
     auto backend = options["backend"].as<luisa::string>();
-    auto index = options["device"].as<int32_t>();
+    auto index = options["device"].as<std::size_t>();
     auto path = options["scene"].as<std::filesystem::path>();
-    compute::DeviceConfig config;
-    config.device_index = index;
-    config.inqueue_buffer_limit = false;// Do not limit the number of in-queue buffers --- we are doing offline rendering!
+    compute::DeviceConfig config {
+        .device_index = index,
+        .inqueue_buffer_limit = false // Do not limit the number of in-queue buffers --- we are doing offline rendering!    
+    };
     auto device = context.create_device(backend, &config);
 
     Clock clock;
