@@ -140,9 +140,9 @@ jobs:
         with:
           submodules: recursive
       - name: "Setup CUDA"
-        uses: Jimver/cuda-toolkit@master
+        uses: Jimver/cuda-toolkit@v0.2.22
         with:
-          cuda: 12.8.0
+          cuda: 12.8.1
       - name: "Setup Ninja"
         uses: ashutoshvarma/setup-ninja@master
         with:
