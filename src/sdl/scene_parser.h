@@ -23,7 +23,6 @@
 namespace luisa::render {
 
 class SceneDesc;
-class SceneNodeDesc;
 class SceneParserJSON;
 
 class SceneParser {

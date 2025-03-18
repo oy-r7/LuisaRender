@@ -14,7 +14,6 @@
 
 namespace luisa::render {
 
-class SceneDesc;
 class SceneNodeDesc;
 
 struct JustBool {
