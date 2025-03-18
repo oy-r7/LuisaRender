@@ -227,7 +227,7 @@ public:
     [[nodiscard]] auto read_hit(Expr<uint> index) const noexcept {
         return _hit->read(index);
     }
-    [[nodiscrad]] auto read_frame(Expr<uint> index) const noexcept {
+    [[nodiscard]] auto read_frame(Expr<uint> index) const noexcept {
 		return _frame->read(index);
 	}
     [[nodiscard]] auto read_dim_frame(Expr<uint> index) const noexcept {
@@ -246,7 +246,7 @@ public:
     void write_dim_frame(Expr<uint> index, Expr<DimensionalFrame> frame) noexcept {
         _dim_frame->write(index, frame);
     }
-    
+
 
 
 #define MOVE(entry, from, to)       \
@@ -340,7 +340,7 @@ void MegakernelWaveFrontInstance::_render_one_camera(
         sync_block();
         //pipeline().printer().info("work counter {} of block {}: {}", -1, block_x(), -1);
         auto count_limit = (tot_samples*1.2f)/min(block_count,50u)/(use_global?block_size:block_size/KERNEL_COUNT);
-        
+
         $while((rem_global[0] != 0u | rem_local[0] != 0u) & (count!= count_limit)) {
             sync_block();//very important, synchronize for condition
             rem_local[0] = 0u;
@@ -542,7 +542,7 @@ void MegakernelWaveFrontInstance::_render_one_camera(
 					save_kernel(path_id, INTERSECT, INTERSECT);
 				};
             };
-                
+
             auto evaluate_miss_shader = [&](UInt path_id) noexcept {
                 if (pipeline().environment()) {
                     auto wi = path_ray[path_id]->direction();
