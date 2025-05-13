@@ -182,6 +182,10 @@ protected:
 				device_log("Breaking loop due to iteration limit");
 				$break;  // Force break to prevent hanging
 			};
+            auto eta = def(1.f);
+            auto u_rr = def(0.f);
+            Bool scattered = def(false);
+            $if (depth + 1u >= rr_depth) { u_rr = sampler()->generate_1d(); };
         
         };
         return spectrum->srgb(swl, Li);
