@@ -269,6 +269,12 @@ protected:
                                             ans = false;
                                         }
                                         $else {
+                                            // Update beta and r_u for real scattering event
+                                            Float pdf = T_maj[0u] * closure_p->sigma_s()[0u];
+                                            beta *= T_maj * closure_p->sigma_s() / pdf;
+                                            r_u *= T_maj * closure_p->sigma_s() / pdf;
+
+                                            Bool Ld_medium_zero = def(false);
                                         };
                                     }
                                     $elif (medium_event == Medium::event_null) {
