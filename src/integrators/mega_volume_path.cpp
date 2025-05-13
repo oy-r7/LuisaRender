@@ -51,6 +51,22 @@ protected:
         Instance::_render_one_camera(command_buffer, camera);
     }
 
+    [[nodiscard]] UInt event(const SampledWavelengths &swl, luisa::shared_ptr<Interaction> it, Expr<float> time,
+                             Expr<float3> wo, Expr<float3> wi) const noexcept {
+        Float3 wo_local, wi_local;
+        $if (it->shape().has_surface()) {
+            PolymorphicCall<Surface::Closure> call;
+            pipeline().surfaces().dispatch(it->shape().surface_tag(), [&](auto surface) noexcept {
+                surface->closure(call, *it, swl, wo, 1.f, time);
+            });
+            call.execute([&](auto closure) noexcept {
+                auto shading = closure->it().shading();
+                wo_local = shading.world_to_local(wo);
+                wi_local = shading.world_to_local(wi);
+            });
+        }
+    }
+
 };
 
 }// namespace luisa::render
