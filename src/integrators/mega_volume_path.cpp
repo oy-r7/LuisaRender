@@ -466,13 +466,19 @@ protected:
                 // sample one light
                 auto light_sample = light_sampler()->sample(
                     *it, u_light_selection, u_light_surface, swl, time);
-                    
+
                  // trace shadow ray
                 auto occluded = pipeline().geometry()->intersect_any(light_sample.shadow_ray);
 
                 auto medium_tag = it->shape().medium_tag();
                 auto medium_priority = def(0u);
                 auto eta_next = def(1.f);
+                pipeline().media().dispatch(medium_tag, [&](auto medium) {
+                    auto closure = medium->closure(ray, swl, time);
+                    eta_next = closure->eta();
+                });
+
+                
             };
         
         };
