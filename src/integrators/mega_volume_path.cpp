@@ -338,6 +338,13 @@ protected:
 														T_ray *= T_maj / normalization_factor;
 														r_l *= T_maj / normalization_factor;
 														r_u *= T_maj / normalization_factor;
+
+                                                        // More robust check for early termination
+														$if (T_ray.max() < 1e-4f) {
+															T_ray = SampledSpectrum{swl.dimension(), 0.f};  // Set to zero explicitly
+															Ld_medium_zero = true;
+															$break;
+														};
                                                     };
 
                                                 };
