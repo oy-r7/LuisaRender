@@ -1,6 +1,8 @@
 //
 // Created by ChenXin on 2023/2/13.
+// Modified by Omid Ghotbi (TAO) 2025/04/17
 //
+
 
 #include <base/medium.h>
 #include <base/texture.h>
@@ -47,14 +49,25 @@ public:
     public:
         [[nodiscard]] Medium::Sample sample(Expr<float> t_max, PCG32 &rng) const noexcept override {
             Medium::Sample sample_ans = Medium::Sample::zero(swl().dimension());
-            SampledSpectrum pdf_channels = SampledSpectrum{swl().dimension(), 0.f};
+            /*SampledSpectrum pdf_channels = SampledSpectrum{swl().dimension(), 0.f};
             for (auto i = 0u; i < swl().dimension(); ++i) {
                 pdf_channels[i] = rng.uniform_float();
             }
-            pdf_channels /= pdf_channels.sum();
+            pdf_channels /= pdf_channels.sum();*/
+			
+			// More efficient importance sampling based on sigma_t
+			SampledSpectrum pdf_channels = SampledSpectrum{swl().dimension(), 0.f};
+			for (auto i = 0u; i < swl().dimension(); ++i) {
+				// Weight by sigma_t so we prefer sampling channels with higher extinction
+				pdf_channels[i] = sigma_t()[i] + 0.01f;  // Small offset to avoid zero probabilities
+			}
+			pdf_channels /= pdf_channels.sum();  // Normalize
+			
             auto channel = sample_discrete(pdf_channels, rng.uniform_float());
             auto u = rng.uniform_float();
-            auto t = -log(max(1.f - u, std::numeric_limits<float>::min())) / sigma_t()[channel];
+			auto sigma_t_val = sigma_t();
+			auto sigma_t_safe = max(sigma_t_val, std::numeric_limits<float>::min());
+            auto t = -log(max(1.f - u, std::numeric_limits<float>::min())) / sigma_t_safe[channel];
 
             // hit surface
             $if(t > t_max) {
@@ -116,19 +129,18 @@ public:
             return sample_ans;
         }
         [[nodiscard]] Evaluation transmittance(Expr<float> t, PCG32 &rng) const noexcept override {
-            Medium::Evaluation evaluation_ans = Medium::Evaluation::zero(swl().dimension());
-            SampledSpectrum pdf_channels = SampledSpectrum{swl().dimension(), 0.f};
-            for (auto i = 0u; i < swl().dimension(); ++i) {
-                pdf_channels[i] = rng.uniform_float();
-            }
-            pdf_channels /= pdf_channels.sum();
+			Medium::Evaluation evaluation_ans = Medium::Evaluation::zero(swl().dimension());
+    
+			// pdf calculation - equal weight for all channels
+			SampledSpectrum pdf_channels = SampledSpectrum{swl().dimension(), 1.0f / swl().dimension()};
+			
+			auto Tr = analytic_transmittance(t, sigma_t());
+			// Avoid potential division by zero or very small numbers
+			auto pdf = pdf_channels * max(Tr, 1e-10f);
+			evaluation_ans.f = Tr;
+			evaluation_ans.pdf = max(pdf.sum(), 1e-10f);  // Avoid zero pdf
 
-            auto Tr = analytic_transmittance(t, sigma_t());
-            auto pdf = pdf_channels * Tr;
-            evaluation_ans.f = Tr;
-            evaluation_ans.pdf = pdf.sum();
-
-            return evaluation_ans;
+			return evaluation_ans;
         }
         [[nodiscard]] unique_ptr<RayMajorantIterator> sample_iterator(Expr<float> t_max) const noexcept override {
             return luisa::make_unique<HomogeneousMajorantIterator>(0.f, t_max, sigma_t());
