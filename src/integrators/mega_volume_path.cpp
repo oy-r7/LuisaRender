@@ -161,6 +161,10 @@ protected:
             auto origin = ray->origin();
             device_log("ray->origin()=({}, {}, {})", origin.x, origin.y, origin.z);
             device_log("ray->direction()=({}, {}, {})", dir.x, dir.y, dir.z);
+            device_log("it->p()=({}, {}, {})", it->p().x, it->p().y, it->p().z);
+            device_log("it->shape().has_medium()={}", it->shape().has_medium());
+            ray = it->spawn_ray(ray->direction());
+            depth_track += 1u;
         };
         device_log("Final medium tracker size={}", medium_tracker.size());
         
