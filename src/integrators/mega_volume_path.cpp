@@ -387,6 +387,16 @@ protected:
                                     }
                                     $elif (medium_event == Medium::event_null) {
                                         device_log("Null");
+                                        // Handle null scattering along ray path
+                                        SampledSpectrum sigma_n = max(sigma_maj - closure_p->sigma_a() - closure_p->sigma_s(), 0.f);
+                                        Float pdf = T_maj[0u] * sigma_n[0u];
+                                        beta *= T_maj * sigma_n / pdf;
+                                        $if (pdf == 0.f) {
+                                            beta = 0.f;
+                                        };
+                                        r_u *= T_maj * sigma_n / pdf;
+                                        r_l *= T_maj * sigma_maj / pdf;
+                                        ans = !beta.is_zero() & !r_u.is_zero();
                                     };
                                 };
                                 return ans;
