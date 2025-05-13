@@ -401,6 +401,15 @@ protected:
                                 };
                                 return ans;
                             });
+                        // Handle terminated, scattered, and unscattered medium rays
+                        $if (terminated | beta.all(le_zero) | r_u.all(le_zero)) {
+                            // Terminate path sampling if ray has been terminated
+                            $break;
+                        };
+                        $if (scattered) {
+                            $continue;
+                        };
+                        
                         )};
                     }
                 });
