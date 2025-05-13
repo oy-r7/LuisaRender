@@ -217,6 +217,9 @@ protected:
                     eta = closure->eta();
 
                     if (!closure->instance()->node()->is_vacuum()) {
+                        Bool terminated = def(false);
+                        SampledSpectrum T_maj = closure->sampleT_maj(
+                        )};
                     }
                 });
 
