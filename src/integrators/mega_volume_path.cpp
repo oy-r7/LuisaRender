@@ -261,6 +261,14 @@ protected:
                                     }
                                     $elif (medium_event == Medium::event_scatter) {
                                         device_log("Scatter");
+                                        // Handle scattering along ray path
+                                        // Stop path sampling if maximum depth has been reached
+                                        depth += 1u;
+                                        $if (depth >= max_depth) {
+                                            terminated = true;
+                                            ans = false;
+                                        }
+                                        
                                     }
                                     $elif (medium_event == Medium::event_null) {
                                         device_log("Null");
