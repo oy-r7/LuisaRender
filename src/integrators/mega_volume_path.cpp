@@ -285,6 +285,16 @@ protected:
                                                 Interaction light_it{};
                                                 auto light_sample = light_sampler()->sample(
                                                     light_it, u_light_selection, u_light_surface, swl, time);
+
+                                                // direct lighting
+                                                $if (light_sample.eval.pdf > 0.0f) {
+                                                    auto wo = closure->ray()->direction();
+                                                    auto wi = light_sample.shadow_ray->direction();
+
+                                                    auto light_ray = make_ray(closure->ray()->origin(), wi, 0.f, one_minus_epsilon);
+                                                    SampledSpectrum T_ray{swl.dimension(), 1.f}, r_l{swl.dimension(), 1.f}, r_u{swl.dimension(), 1.f};
+
+                                                };
                                             };
                                         };
                                     }
