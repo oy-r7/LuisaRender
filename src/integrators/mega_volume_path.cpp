@@ -448,6 +448,14 @@ protected:
                     };
                 };
             }
+
+            // hit ordinary surface
+            $if (!it->shape().has_surface()) {
+                // TODO: if shape has no surface, we cannot get the right normal direction
+                //      so we cannot deal with medium tracker correctly (enter/exit)
+                ray = it->spawn_ray(ray->direction());
+                pdf_bsdf = 1e16f;
+            }
         
         };
         return spectrum->srgb(swl, Li);
