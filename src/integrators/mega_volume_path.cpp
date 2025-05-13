@@ -314,6 +314,24 @@ protected:
                                                         Float u = rng.uniform_float();
                                                         SampledSpectrum T_maj = closure_p->sampleT_maj(
                                                             t_max, u, rng,
+                                                            [&](luisa::unique_ptr<Medium::Closure> closure_p,
+                                                                SampledSpectrum sigma_maj, SampledSpectrum T_maj) -> Bool {
+																device_log("[WARNING] SampledSpectrum T_maj.");
+                                                                // Update ray transmittance estimate at sampled point
+                                                                // Update T_ray and PDFs using ratio-tracking estimator
+                                                                SampledSpectrum sigma_n = max(sigma_maj - closure_p->sigma_a() - closure_p->sigma_s(), 0.f);
+                                                                Float pdf = T_maj[0u] * sigma_maj[0u];
+                                                                T_ray *= T_maj * sigma_n / pdf;
+                                                                r_l *= T_maj * sigma_maj / pdf;
+                                                                r_u *= T_maj * sigma_n / pdf;
+
+                                                                // Possibly terminate transmittance computation using
+                                                                // Russian roulette
+                                                                SampledSpectrum Tr = T_ray / (r_l + r_u).average();
+                                                                Float q = 0.75f;
+                                                                T_ray = ite(Tr.max() < 0.05f, ite(rng.uniform_float() < q, 0.f, T_ray / (1 - q)), T_ray);
+
+                                                                return ite(T_ray.is_zero(), false, true);
                                                             });
                                                     };
 
