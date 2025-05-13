@@ -477,7 +477,7 @@ protected:
                     auto closure = medium->closure(ray, swl, time);
                     eta_next = closure->eta();
                 });
-                
+
                 $if (has_medium) {
                     pipeline().media().dispatch(medium_tag, [&](auto medium) {
                         medium_priority = medium->priority();
@@ -485,6 +485,9 @@ protected:
                         device_log("eta={}", closure->eta());
                     });
                 };
+
+                auto medium_info = make_medium_info(medium_priority, medium_tag);
+                medium_info.medium_tag = medium_tag;
                 
             };
         
