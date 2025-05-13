@@ -409,8 +409,12 @@ protected:
                         $if (scattered) {
                             $continue;
                         };
-                        
-                        )};
+                        device_log("T_maj=({}, {}, {})", T_maj[0u], T_maj[1u], T_maj[2u]);
+
+                        beta *= T_maj / T_maj[0u];
+                        r_u *= T_maj / T_maj[0u];
+                        r_l *= T_maj / T_maj[0u];
+
                     }
                 });
 
