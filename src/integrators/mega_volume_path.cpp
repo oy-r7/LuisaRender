@@ -477,7 +477,14 @@ protected:
                     auto closure = medium->closure(ray, swl, time);
                     eta_next = closure->eta();
                 });
-
+                
+                $if (has_medium) {
+                    pipeline().media().dispatch(medium_tag, [&](auto medium) {
+                        medium_priority = medium->priority();
+                        auto closure = medium->closure(ray, swl, time);
+                        device_log("eta={}", closure->eta());
+                    });
+                };
                 
             };
         
