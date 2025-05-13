@@ -132,6 +132,9 @@ protected:
                     medium_priority = medium->priority();
                 });
                 auto medium_info = make_medium_info(medium_priority, medium_tag);
+
+                // deal with medium tracker
+                auto surface_event = event(swl, it, time, -ray->direction(), ray->direction());
             }
 
         };
