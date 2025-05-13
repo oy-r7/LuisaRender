@@ -126,6 +126,12 @@ protected:
             $if (it->shape().has_medium()) {
                 auto surface_tag = it->shape().surface_tag();
                 auto medium_tag = it->shape().medium_tag();
+
+                auto medium_priority = def<uint>(0u);
+                pipeline().media().dispatch(medium_tag, [&](auto medium) {
+                    medium_priority = medium->priority();
+                });
+                auto medium_info = make_medium_info(medium_priority, medium_tag);
             }
 
         };
