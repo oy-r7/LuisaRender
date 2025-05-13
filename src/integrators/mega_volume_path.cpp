@@ -9,3 +9,7 @@
 #include <base/medium.h>
 #include <util/rng.h>
 #include <base/phase_function.h>
+
+namespace luisa::render {
+
+using namespace compute;
