@@ -213,6 +213,11 @@ protected:
 
                 auto medium_tag = medium_tracker.current().medium_tag;
                 pipeline().media().dispatch(medium_tag, [&](auto medium) {
+                    auto closure = medium->closure(ray, swl, time);
+                    eta = closure->eta();
+
+                    if (!closure->instance()->node()->is_vacuum()) {
+                    }
                 });
 
 
