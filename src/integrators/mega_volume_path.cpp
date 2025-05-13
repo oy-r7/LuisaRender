@@ -259,6 +259,11 @@ protected:
                                         terminated = true;
                                         ans = false;
                                     }
+                                    $elif (medium_event == Medium::event_scatter) {
+                                        device_log("Scatter");
+                                    }
+                                    $elif (medium_event == Medium::event_null) {
+                                    };
                                 };
                             });
                         )};
