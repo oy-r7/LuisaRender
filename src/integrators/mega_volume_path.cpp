@@ -515,6 +515,9 @@ protected:
 						};
 					}
                     $else {
+                        if (auto dispersive = closure->is_dispersive()) {
+                            $if (*dispersive) { swl.terminate_secondary(); };
+                        }
                     };
                 
             };
