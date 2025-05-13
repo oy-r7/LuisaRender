@@ -14,7 +14,7 @@ namespace luisa::render {
 
 using namespace compute;
 
-class MegakernelVolumePathTracing final : public ProgressiveIntegrator {
+class MegakernelVolumetricPathTracing final : public ProgressiveIntegrator {
 
 private:
     uint _max_depth;
