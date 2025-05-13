@@ -434,6 +434,20 @@ protected:
                 }
                 $break;
             };
+
+            // hit light
+            if (!pipeline().lights().empty()) {
+                $if (it->shape().has_light()) {
+                    auto eval = light_sampler()->evaluate_hit(*it, ray->origin(), swl, time);
+                    $if (depth == 0u) {
+                        Li += beta * eval.L / r_u.average();
+                    }
+                    $else {
+                        r_l /= balance_heuristic(pdf_bsdf, eval.pdf);
+                        Li += beta * eval.L / (r_u + r_l).average();
+                    };
+                };
+            }
         
         };
         return spectrum->srgb(swl, Li);
