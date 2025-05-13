@@ -275,6 +275,10 @@ protected:
                                             r_u *= T_maj * closure_p->sigma_s() / pdf;
 
                                             Bool Ld_medium_zero = def(false);
+                                            $if (!beta.is_zero() & !r_u.is_zero()) {
+                                                // Sample direct lighting at volume scattering event
+                                                // generate uniform samples
+                                            };
                                         };
                                     }
                                     $elif (medium_event == Medium::event_null) {
