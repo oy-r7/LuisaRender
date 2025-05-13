@@ -105,6 +105,11 @@ protected:
         pipeline().media().dispatch(env_medium_tag, [&](auto medium) {
             medium_tracker.enter(medium->priority(), make_medium_info(medium->priority(), env_medium_tag));
         });
+
+        auto ray = camera_ray;
+        // TODO: bug in initialization of medium tracker where the angle between shared edge is small
+        auto depth_track = def<uint>(0u);
+		auto max_iterations = 644u;
         
         return spectrum->srgb(swl, Li);
     }
