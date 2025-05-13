@@ -190,6 +190,11 @@ protected:
             // trace
             auto it = pipeline().geometry()->intersect(ray);
             auto has_medium = it->shape().has_medium();
+
+            device_log("depth={}", depth + 1u);
+            device_log("before: medium tracker size={}, priority={}, tag={}",
+                       medium_tracker.size(), medium_tracker.current().priority, medium_tracker.current().medium_tag);
+            device_log("it->p(): ({}, {}, {})", it->p().x, it->p().y, it->p().z);
         
         };
         return spectrum->srgb(swl, Li);
