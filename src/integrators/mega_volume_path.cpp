@@ -370,6 +370,17 @@ protected:
                                                 $if (!ps.valid | (ps.pdf == 0.f)) {
                                                     terminated = true;
                                                 }
+                                                $else {
+                                                    // Update ray path state for indirect volume scattering
+                                                    beta *= ps.p / ps.pdf;
+                                                    r_l = r_u / ps.pdf;
+                                                    scattered = true;
+                                                    auto p = closure_p->ray()->origin();
+                                                    ray = make_ray(p, ps.wi);
+                                                    device_log(
+                                                        "Medium scattering event at depth={}, p=({}, {}, {})",
+                                                        depth, p.x, p.y, p.z);
+                                                };
                                             };
                                         };
                                     }
