@@ -556,7 +556,17 @@ protected:
 							};
 						};
                     };
-                
+                    
+                    $if (has_medium) {
+                        $switch (surface_event) {
+                            $case (Surface::event_enter) {
+                                medium_tracker.enter(medium_priority, medium_info);
+                            };
+                            $case (Surface::event_exit) {
+                                medium_tracker.exit(medium_priority, medium_info);
+                            };
+                        };
+                    };
             };
         
         };
