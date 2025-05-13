@@ -263,6 +263,7 @@ protected:
                                         device_log("Scatter");
                                     }
                                     $elif (medium_event == Medium::event_null) {
+                                        device_log("Null");
                                     };
                                 };
                             });
