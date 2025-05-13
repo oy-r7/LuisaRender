@@ -230,7 +230,24 @@ protected:
                                     ans = false;
                                 }
                                 $else {
-                                    
+                                    // Add emission from medium scattering event
+                                    $if ((depth < max_depth) & !closure_p->le().is_zero()) {
+                                        // Compute beta' at new path vertex
+                                        Float pdf = sigma_maj[0u] * T_maj[0u];
+                                        SampledSpectrum betap = beta * T_maj / pdf;
+
+                                        // Compute rescaled path probability for absorption at path vertex
+                                        SampledSpectrum r_e = r_u * sigma_maj * T_maj / pdf;
+
+                                        // Update Li for medium emission
+                                        auto Le_medium = betap * closure_p->sigma_a() * closure_p->le() / r_e.average();
+                                        Li += ite(!r_e.is_zero(), Le_medium, 0.f);
+                                    };
+
+                                    // Compute medium event probabilities for interaction
+                                    Float pAbsorb = closure_p->sigma_a()[0u] / sigma_maj[0u];
+                                    Float pScatter = closure_p->sigma_s()[0u] / sigma_maj[0u];
+                                    Float pNull = max(0.f, 1 - pAbsorb - pScatter);
                                 };
                             });
                         )};
