@@ -303,6 +303,12 @@ protected:
 															Ld_medium_zero = true;
 															$break;
 														};
+
+                                                        auto si = pipeline().geometry()->intersect(light_ray);
+                                                        $if (si->valid() & si->shape().has_surface()) {
+                                                            Ld_medium_zero = true;
+                                                            $break;
+                                                        };
                                                     };
 
                                                 };
