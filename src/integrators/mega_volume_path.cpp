@@ -537,18 +537,24 @@ protected:
                         auto w = ite(surface_sample.eval.pdf > 0.f, 1.f / surface_sample.eval.pdf, 0.f);
                         beta *= w * surface_sample.eval.f;
                         r_l = r_u * w;
-                        
+
                         // apply eta scale & update medium tracker
                         $if (has_medium) {
-                            $switch (surface_event) {
-                                $case (Surface::event_enter) {
-                                    eta_scale = sqr(eta_next / eta);
-                                };
-                                $case (Surface::event_exit) {
-                                    eta_scale = sqr(eta / eta_next);
-                                };
-                            };
-                        };
+							// More robust eta handling with additional checks
+							auto valid_eta = (eta > 0.001f) & (eta_next > 0.001f);
+							$switch (surface_event) {
+								$case (Surface::event_enter) {
+									eta_scale = ite(valid_eta, sqr(eta_next / eta), 1.0f);
+								};
+								$case (Surface::event_exit) {
+									eta_scale = ite(valid_eta, sqr(eta / eta_next), 1.0f);
+								};
+								$default {
+									// For reflection events, no change to eta_scale
+									device_log("==================================> eta_scale no change");
+								};
+							};
+						};
                     };
                 
             };
