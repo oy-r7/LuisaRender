@@ -123,6 +123,11 @@ protected:
 
             device_log("depth={}", depth_track);
 
+            $if (it->shape().has_medium()) {
+                auto surface_tag = it->shape().surface_tag();
+                auto medium_tag = it->shape().medium_tag();
+            }
+
         };
         
         
