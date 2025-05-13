@@ -25,4 +25,6 @@ public:
 
 };
 
-}
+}// namespace luisa::render
+
+LUISA_RENDER_MAKE_SCENE_NODE_PLUGIN(luisa::render::MegakernelVolumePathTracing)
