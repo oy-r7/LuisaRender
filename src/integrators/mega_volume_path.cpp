@@ -97,6 +97,11 @@ protected:
                 wi_local = shading.world_to_local(wi);
             });
         }
+        $else {
+            auto shading = it->shading();
+            wo_local = shading.world_to_local(wo);
+            wi_local = shading.world_to_local(wi);
+        };
         
         return spectrum->srgb(swl, Li);
     }
