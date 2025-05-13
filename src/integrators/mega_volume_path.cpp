@@ -213,7 +213,7 @@ protected:
 
                 auto medium_tag = medium_tracker.current().medium_tag;
                 pipeline().media().dispatch(medium_tag, [&](auto medium) {
-                }
+                });
 
 
             };
