@@ -505,6 +505,14 @@ protected:
 						surface_event = surface_event_skip;
 						ray = it->spawn_ray(ray->direction());
 						pdf_bsdf = 1e16f;
+						// Reset medium tracker if we detect inconsistency
+						$if (medium_tracker.size() > 10) {  // Arbitrary threshold for likely corruption
+							medium_tracker = MediumTracker{};  // Reset tracker
+							auto env_medium_tag = pipeline().environment_medium_tag();
+							pipeline().media().dispatch(env_medium_tag, [&](auto medium) {
+								medium_tracker.enter(medium->priority(), make_medium_info(medium->priority(), env_medium_tag));
+							});
+						};
 					}
                 
             };
