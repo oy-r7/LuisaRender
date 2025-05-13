@@ -527,6 +527,16 @@ protected:
                                      light_sample.eval.pdf;
                             Li += w * beta * eval.f * light_sample.eval.L;
                         };
+                        
+                        // sample material
+                        auto surface_sample = closure->sample(wo, u_lobe, u_bsdf);
+                        surface_event = surface_sample.event;
+
+                        ray = it->spawn_ray(surface_sample.wi);
+                        pdf_bsdf = surface_sample.eval.pdf;
+                        auto w = ite(surface_sample.eval.pdf > 0.f, 1.f / surface_sample.eval.pdf, 0.f);
+                        beta *= w * surface_sample.eval.f;
+                        r_l = r_u * w;
                     };
                 
             };
