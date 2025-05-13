@@ -417,8 +417,22 @@ protected:
 
                     }
                 });
+            };
 
-
+            // sample the surface
+            // miss, environment light
+            $if (!it->valid()) {
+                if (pipeline().environment()) {
+                    auto eval = light_sampler()->evaluate_miss(ray->direction(), swl, time);
+                    $if (depth == 0u) {
+                        Li += beta * eval.L / r_u.average();
+                    }
+                    $else {
+                        r_l /= balance_heuristic(pdf_bsdf, eval.pdf);
+                        Li += beta * eval.L / (r_u + r_l).average();
+                    };
+                }
+                $break;
             };
         
         };
