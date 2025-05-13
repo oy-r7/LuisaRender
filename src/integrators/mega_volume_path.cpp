@@ -35,7 +35,11 @@ public:
         Pipeline &pipeline, CommandBuffer &command_buffer) const noexcept override;
 };
 
-};
+class MegakernelVolumetricPathTracingInstance final : public ProgressiveIntegrator::Instance {
+
+public:
+    using ProgressiveIntegrator::Instance::Instance;
+
 
 }// namespace luisa::render
 
