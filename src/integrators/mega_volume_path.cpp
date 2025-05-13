@@ -135,8 +135,27 @@ protected:
 
                 // deal with medium tracker
                 auto surface_event = event(swl, it, time, -ray->direction(), ray->direction());
-            }
-
+                pipeline().surfaces().dispatch(surface_tag, [&](auto surface) {
+                    device_log("surface event={}", surface_event);
+                    // update medium tracker
+                    $switch (surface_event) {
+                        $case (Surface::event_enter) {
+                            medium_tracker.enter(medium_priority, medium_info);
+                            device_log("enter: priority={}, medium_tag={}", medium_priority, medium_tag);
+                        };
+                        $case (Surface::event_exit) {
+                            $if (medium_tracker.exist(medium_priority, medium_info)) {
+                                medium_tracker.exit(medium_priority, medium_info);
+                                device_log("exit exist: priority={}, medium_tag={}", medium_priority, medium_tag);
+                            }
+                            $else {
+                                medium_tracker.enter(medium_priority, medium_info);
+                                device_log("exit nonexistent: priority={}, medium_tag={}", medium_priority, medium_tag);
+                            };
+                        };
+                    };
+                });
+            };
         };
         device_log("Final medium tracker size={}", medium_tracker.size());
         
