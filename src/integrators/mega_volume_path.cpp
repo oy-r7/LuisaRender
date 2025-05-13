@@ -294,6 +294,17 @@ protected:
                                                     auto light_ray = make_ray(closure->ray()->origin(), wi, 0.f, one_minus_epsilon);
                                                     SampledSpectrum T_ray{swl.dimension(), 1.f}, r_l{swl.dimension(), 1.f}, r_u{swl.dimension(), 1.f};
 
+                                                    auto shadow_iterations = def(0u);
+													$while (any(light_ray->direction() != 0.f)) {
+                                                        // Add iteration guard:
+														shadow_iterations += 1u;
+														$if (shadow_iterations > 64u) {
+															device_log("[WARNING] Exceeded shadow iteration limit. Forcing break.");
+															Ld_medium_zero = true;
+															$break;
+														};
+                                                    };
+
                                                 };
                                             };
                                         };
