@@ -488,6 +488,16 @@ protected:
 
                 auto medium_info = make_medium_info(medium_priority, medium_tag);
                 medium_info.medium_tag = medium_tag;
+
+                // evaluate material
+                auto surface_tag = it->shape().surface_tag();
+                auto surface_event_skip = event(swl, it, time, -ray->direction(), ray->direction());
+                auto wo = -ray->direction();
+
+                PolymorphicCall<Surface::Closure> call;
+                pipeline().surfaces().dispatch(surface_tag, [&](auto surface) noexcept {
+                    surface->closure(call, *it, swl, wo, eta, time);
+                });
                 
             };
         
