@@ -248,6 +248,17 @@ protected:
                                     Float pAbsorb = closure_p->sigma_a()[0u] / sigma_maj[0u];
                                     Float pScatter = closure_p->sigma_s()[0u] / sigma_maj[0u];
                                     Float pNull = max(0.f, 1 - pAbsorb - pScatter);
+
+                                    // Sample medium scattering event type and update path
+                                    Float um = rng.uniform_float();
+                                    UInt medium_event = Medium::sample_event(pAbsorb, pScatter, pNull, um);
+                                    // don't use switch-case here, because of local variable definition
+                                    $if (medium_event == Medium::event_absorb) {
+                                        device_log("Absorb");
+                                        // Handle absorption along ray path
+                                        terminated = true;
+                                        ans = false;
+                                    }
                                 };
                             });
                         )};
