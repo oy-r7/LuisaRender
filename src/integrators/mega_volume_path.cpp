@@ -65,6 +65,22 @@ protected:
                 wi_local = shading.world_to_local(wi);
             });
         }
+        $else {
+            auto shading = it->shading();
+            wo_local = shading.world_to_local(wo);
+            wi_local = shading.world_to_local(wi);
+        };
+        device_log(
+            "wo_local: ({}, {}, {}), wi_local: ({}, {}, {})",
+            wo_local.x, wo_local.y, wo_local.z,
+            wi_local.x, wi_local.y, wi_local.z);
+        return ite(
+            wo_local.z * wi_local.z > 0.f,
+            Surface::event_reflect,
+            ite(
+                wi_local.z > 0.f,
+                Surface::event_exit,
+                Surface::event_enter));
     }
 
 };
