@@ -223,7 +223,7 @@ Camera::Sample Camera::Instance::generate_ray(Expr<uint2> pixel_coord, Expr<floa
     auto d_camera = make_float3x3(c2w) * ray->direction();
     auto len = length(d_camera);
     // Use 'ite' (if-then-else) with proper DSL vector types:
-    //auto d = normalize(ite(len < 1e-5f, make_float3(0.f, 1.f, 0.f), d_camera));
+    //auto d = normalize(ite(len < 1e-5f, make_float3(0.f, 0.f, -1.f), d_camera));
 	auto d = ite(len < 1e-7f, make_float3(0.f, 0.f, -1.f), d_camera/len);
     
     ray->set_origin(o);
