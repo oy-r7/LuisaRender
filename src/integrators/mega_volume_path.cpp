@@ -22,7 +22,7 @@ private:
     float _rr_threshold;
 
 public:
-    MegakernelVolumePathTracing(Scene *scene, const SceneNodeDesc *desc) noexcept
+    MegakernelVolumetricPathTracing(Scene *scene, const SceneNodeDesc *desc) noexcept
         : ProgressiveIntegrator{scene, desc},
 };
 
@@ -30,4 +30,4 @@ public:
 
 }// namespace luisa::render
 
-LUISA_RENDER_MAKE_SCENE_NODE_PLUGIN(luisa::render::MegakernelVolumePathTracing)
+LUISA_RENDER_MAKE_SCENE_NODE_PLUGIN(luisa::render::MegakernelVolumetricPathTracing)
