@@ -269,7 +269,7 @@ protected:
                                             ans = false;
                                         }
                                         $else {
-                                        }
+                                        };
                                     }
                                     $elif (medium_event == Medium::event_null) {
                                         device_log("Null");
