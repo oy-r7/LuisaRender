@@ -129,6 +129,7 @@ protected:
             }
 
         };
+        device_log("Final medium tracker size={}", medium_tracker.size());
         
         
         return spectrum->srgb(swl, Li);
