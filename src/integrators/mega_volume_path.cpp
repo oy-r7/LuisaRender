@@ -556,7 +556,7 @@ protected:
 							};
 						};
                     };
-                    
+
                     $if (has_medium) {
                         $switch (surface_event) {
                             $case (Surface::event_enter) {
@@ -568,6 +568,16 @@ protected:
                         };
                     };
             };
+
+            beta = zero_if_any_nan(beta);
+            $if (beta.all(le_zero)) { $break; };
+            // rr
+			auto rr_threshold = node<MegakernelVolumePathTracing>()->rr_threshold();
+			auto q = max(beta.max() * eta_scale, .05f);
+			$if (depth + 1u >= rr_depth) {
+				$if (q < rr_threshold & u_rr >= q) { $break; };
+				beta *= ite(q < rr_threshold, 1.0f / q, 1.f);
+			}
         
         };
         return spectrum->srgb(swl, Li);
