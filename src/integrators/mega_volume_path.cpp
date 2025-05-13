@@ -112,6 +112,14 @@ protected:
 		auto max_iterations = 644u;
 
         $while (true) {
+            auto it = pipeline().geometry()->intersect(ray);
+            $if (!it->valid()) { $break; };
+			
+			depth_track += 1u;
+			$if (depth_track > max_iterations) {
+				device_log("[WARNING] Max iteration limit reached in geometry intersect loop. Breaking forcefully.");
+				$break;
+			};
 
         };
         
