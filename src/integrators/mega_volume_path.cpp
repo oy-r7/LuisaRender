@@ -186,6 +186,10 @@ protected:
             auto u_rr = def(0.f);
             Bool scattered = def(false);
             $if (depth + 1u >= rr_depth) { u_rr = sampler()->generate_1d(); };
+
+            // trace
+            auto it = pipeline().geometry()->intersect(ray);
+            auto has_medium = it->shape().has_medium();
         
         };
         return spectrum->srgb(swl, Li);
