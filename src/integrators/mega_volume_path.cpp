@@ -174,8 +174,11 @@ protected:
         auto depth = def(0u);
 		auto iteration_count = def(0u);
         auto max_depth = node<MegakernelVolumePathTracing>()->max_depth();
+
+        $while (depth < max_depth) {
+			// Increment and check iteration count to prevent infinite loops
         
-        
+        };
         return spectrum->srgb(swl, Li);
     }
 };
