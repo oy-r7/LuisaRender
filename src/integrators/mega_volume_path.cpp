@@ -219,6 +219,17 @@ protected:
                     if (!closure->instance()->node()->is_vacuum()) {
                         Bool terminated = def(false);
                         SampledSpectrum T_maj = closure->sampleT_maj(
+                            t_max, u, rng,
+                            [&](luisa::unique_ptr<Medium::Closure> closure_p,
+                                SampledSpectrum sigma_maj, SampledSpectrum T_maj) -> Bool {
+                                    Bool ans = def(true);
+
+                                // Handle medium scattering event for ray
+                                $if (beta.all([](auto b) noexcept { return b <= 0.f; })) {
+                                    terminated = true;
+                                    ans = false;
+                                }
+                            });
                         )};
                     }
                 });
