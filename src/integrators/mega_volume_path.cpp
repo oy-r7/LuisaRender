@@ -571,7 +571,7 @@ protected:
 
             beta = zero_if_any_nan(beta);
             $if (beta.all(le_zero)) { $break; };
-            
+
             auto rr_threshold = node<MegakernelVolumePathTracing>()->rr_threshold();
             auto luminance = beta.average() * eta_scale;  // Using average as approximation for luminance
 			auto q = clamp(max(luminance, rr_threshold), 0.05f, 1.0f);
@@ -580,6 +580,12 @@ protected:
 				beta *= 1.0f / q;  // Always scale by 1/q when continuing
 			};
             depth += 1u;
+
+            device_log(
+                "scattered={}, beta=({}, {}, {}), pdf_bsdf={}, Li: ({}, {}, {})",
+                scattered, beta[0u], beta[1u], beta[2u], pdf_bsdf, Li[0u], Li[1u], Li[2u]);
+            device_log("after: medium tracker size={}, priority={}, tag={}",
+                       medium_tracker.size(), medium_tracker.current().priority, medium_tracker.current().medium_tag);
         
         };
         return spectrum->srgb(swl, Li);
