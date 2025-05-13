@@ -111,6 +111,61 @@ protected:
         auto depth_track = def<uint>(0u);
 		auto max_iterations = 644u;
 
+        $while (true) {
+            auto it = pipeline().geometry()->intersect(ray);
+            $if (!it->valid()) { $break; };
+			
+			depth_track += 1u;
+			$if (depth_track > max_iterations) {
+				device_log("[WARNING] Max iteration limit reached in geometry intersect loop. Breaking forcefully.");
+				$break;
+			};
+
+            device_log("depth={}", depth_track);
+
+            $if (it->shape().has_medium()) {
+                auto surface_tag = it->shape().surface_tag();
+                auto medium_tag = it->shape().medium_tag();
+
+                auto medium_priority = def<uint>(0u);
+                pipeline().media().dispatch(medium_tag, [&](auto medium) {
+                    medium_priority = medium->priority();
+                });
+                auto medium_info = make_medium_info(medium_priority, medium_tag);
+
+                // deal with medium tracker
+                auto surface_event = event(swl, it, time, -ray->direction(), ray->direction());
+                pipeline().surfaces().dispatch(surface_tag, [&](auto surface) {
+                    device_log("surface event={}", surface_event);
+                    // update medium tracker
+                    $switch (surface_event) {
+                        $case (Surface::event_enter) {
+                            medium_tracker.enter(medium_priority, medium_info);
+                            device_log("enter: priority={}, medium_tag={}", medium_priority, medium_tag);
+                        };
+                        $case (Surface::event_exit) {
+                            $if (medium_tracker.exist(medium_priority, medium_info)) {
+                                medium_tracker.exit(medium_priority, medium_info);
+                                device_log("exit exist: priority={}, medium_tag={}", medium_priority, medium_tag);
+                            }
+                            $else {
+                                medium_tracker.enter(medium_priority, medium_info);
+                                device_log("exit nonexistent: priority={}, medium_tag={}", medium_priority, medium_tag);
+                            };
+                        };
+                    };
+                });
+            };
+            device_log("medium tracker size={}", medium_tracker.size());
+            auto dir = ray->direction();
+            auto origin = ray->origin();
+            device_log("ray->origin()=({}, {}, {})", origin.x, origin.y, origin.z);
+            device_log("ray->direction()=({}, {}, {})", dir.x, dir.y, dir.z);
+            device_log("it->p()=({}, {}, {})", it->p().x, it->p().y, it->p().z);
+            device_log("it->shape().has_medium()={}", it->shape().has_medium());
+            ray = it->spawn_ray(ray->direction());
+            depth_track += 1u;
+        };
         device_log("Final medium tracker size={}", medium_tracker.size());
 
         ray = camera_ray;
@@ -157,6 +212,8 @@ protected:
                 Float u_behavior = sampler()->generate_1d();
 
                 auto medium_tag = medium_tracker.current().medium_tag;
+                pipeline().media().dispatch(medium_tag, [&](auto medium) {
+                }
 
 
             };
