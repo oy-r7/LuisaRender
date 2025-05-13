@@ -518,6 +518,15 @@ protected:
                         if (auto dispersive = closure->is_dispersive()) {
                             $if (*dispersive) { swl.terminate_secondary(); };
                         }
+                        // direct lighting
+                        // TODO: add medium to direct lighting
+                        $if (light_sample.eval.pdf > 0.0f & !occluded) {
+                            auto wi = light_sample.shadow_ray->direction();
+                            auto eval = closure->evaluate(wo, wi);
+                            auto w = balance_heuristic(light_sample.eval.pdf, eval.pdf) /
+                                     light_sample.eval.pdf;
+                            Li += w * beta * eval.f * light_sample.eval.L;
+                        };
                     };
                 
             };
