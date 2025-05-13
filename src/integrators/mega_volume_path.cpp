@@ -498,6 +498,14 @@ protected:
                 pipeline().surfaces().dispatch(surface_tag, [&](auto surface) noexcept {
                     surface->closure(call, *it, swl, wo, eta, time);
                 });
+
+                call.execute([&](auto closure) noexcept {
+                    UInt surface_event;
+					$if (medium_tag != medium_tracker.current().medium_tag) {
+						surface_event = surface_event_skip;
+						ray = it->spawn_ray(ray->direction());
+						pdf_bsdf = 1e16f;
+					}
                 
             };
         
