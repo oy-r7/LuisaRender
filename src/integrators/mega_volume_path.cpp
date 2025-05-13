@@ -22,6 +22,9 @@ private:
     float _rr_threshold;
 
 public:
+    MegakernelVolumePathTracing(Scene *scene, const SceneNodeDesc *desc) noexcept
+        : ProgressiveIntegrator{scene, desc},
+};
 
 };
 
