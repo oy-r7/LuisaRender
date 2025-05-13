@@ -198,6 +198,8 @@ protected:
 
             // sample the participating medium
             $if (!medium_tracker.vacuum()) {
+                // Sample the participating medium
+                auto t_max = ite(it->valid(), length(it->p() - ray->origin()), Interaction::default_t_max);
             };
         
         };
