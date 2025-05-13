@@ -54,6 +54,7 @@ protected:
     [[nodiscard]] UInt event(const SampledWavelengths &swl, luisa::shared_ptr<Interaction> it, Expr<float> time,
                              Expr<float3> wo, Expr<float3> wi) const noexcept {
         Float3 wo_local, wi_local;
+
         $if (it->shape().has_surface()) {
             PolymorphicCall<Surface::Closure> call;
             pipeline().surfaces().dispatch(it->shape().surface_tag(), [&](auto surface) noexcept {
@@ -70,6 +71,7 @@ protected:
             wo_local = shading.world_to_local(wo);
             wi_local = shading.world_to_local(wi);
         };
+
         device_log(
             "wo_local: ({}, {}, {}), wi_local: ({}, {}, {})",
             wo_local.x, wo_local.y, wo_local.z,
@@ -105,12 +107,11 @@ protected:
         pipeline().media().dispatch(env_medium_tag, [&](auto medium) {
             medium_tracker.enter(medium->priority(), make_medium_info(medium->priority(), env_medium_tag));
         });
-
         auto ray = camera_ray;
         // TODO: bug in initialization of medium tracker where the angle between shared edge is small
         auto depth_track = def<uint>(0u);
 		auto max_iterations = 644u;
-
+		
         $while (true) {
             auto it = pipeline().geometry()->intersect(ray);
             $if (!it->valid()) { $break; };
@@ -173,11 +174,10 @@ protected:
         auto eta_scale = def(1.f);
         auto depth = def(0u);
 		auto iteration_count = def(0u);
-        auto max_depth = node<MegakernelVolumePathTracing>()->max_depth();
-
+        auto max_depth = node<MegakernelVolumetricPathTracing>()->max_depth();
         $while (depth < max_depth) {
 			// Increment and check iteration count to prevent infinite loops
-            iteration_count += 1u;
+			iteration_count += 1u;
 			$if (iteration_count > max_depth * 10u) {  // Safety threshold
 				device_log("Breaking loop due to iteration limit");
 				$break;  // Force break to prevent hanging
@@ -222,7 +222,7 @@ protected:
                             t_max, u, rng,
                             [&](luisa::unique_ptr<Medium::Closure> closure_p,
                                 SampledSpectrum sigma_maj, SampledSpectrum T_maj) -> Bool {
-                                    Bool ans = def(true);
+                                Bool ans = def(true);
 
                                 // Handle medium scattering event for ray
                                 $if (beta.all([](auto b) noexcept { return b <= 0.f; })) {
@@ -276,7 +276,7 @@ protected:
 
                                             Bool Ld_medium_zero = def(false);
                                             $if (!beta.is_zero() & !r_u.is_zero()) {
-                                                // Sample direct lighting at volume scattering event
+                                                // Sample direct lighting at Volumetric scattering event
                                                 // generate uniform samples
                                                 auto u_light_selection = sampler()->generate_1d();
                                                 auto u_light_surface = sampler()->generate_2d();
@@ -296,20 +296,19 @@ protected:
 
                                                     auto shadow_iterations = def(0u);
 													$while (any(light_ray->direction() != 0.f)) {
-                                                        // Add iteration guard:
+														// Add iteration guard:
 														shadow_iterations += 1u;
 														$if (shadow_iterations > 64u) {
 															device_log("[WARNING] Exceeded shadow iteration limit. Forcing break.");
 															Ld_medium_zero = true;
 															$break;
 														};
-
+														
                                                         auto si = pipeline().geometry()->intersect(light_ray);
                                                         $if (si->valid() & si->shape().has_surface()) {
                                                             Ld_medium_zero = true;
                                                             $break;
                                                         };
-
                                                         Float t_max = ite(si->valid(), length(si->p() - light_ray->origin()), one_minus_epsilon);
                                                         Float u = rng.uniform_float();
                                                         SampledSpectrum T_maj = closure_p->sampleT_maj(
@@ -334,25 +333,26 @@ protected:
                                                                 return ite(T_ray.is_zero(), false, true);
                                                             });
 
-                                                        auto normalization_factor = max(T_maj[0u], 1e-10f);
+														// Avoid potential division by very small values
+														auto normalization_factor = max(T_maj[0u], 1e-10f);
 														T_ray *= T_maj / normalization_factor;
 														r_l *= T_maj / normalization_factor;
 														r_u *= T_maj / normalization_factor;
 
-                                                        // More robust check for early termination
+														// More robust check for early termination
 														$if (T_ray.max() < 1e-4f) {
 															T_ray = SampledSpectrum{swl.dimension(), 0.f};  // Set to zero explicitly
 															Ld_medium_zero = true;
 															$break;
 														};
-
+														
                                                         $if (!si->valid()) {
                                                             $break;
                                                         };
                                                         light_ray = si->spawn_ray_to(light_sample.shadow_ray->origin());
                                                     };
-
-                                                    $if (!Ld_medium_zero) {
+													
+													$if (!Ld_medium_zero) {
                                                         auto phase_function = closure->phase_function();
                                                         auto f_hat = phase_function->p(wo, wi);
                                                         auto scatter_pdf = phase_function->pdf(wo, wi);
@@ -371,7 +371,7 @@ protected:
                                                     terminated = true;
                                                 }
                                                 $else {
-                                                    // Update ray path state for indirect volume scattering
+                                                    // Update ray path state for indirect Volumetric scattering
                                                     beta *= ps.p / ps.pdf;
                                                     r_l = r_u / ps.pdf;
                                                     scattered = true;
@@ -401,6 +401,7 @@ protected:
                                 };
                                 return ans;
                             });
+
                         // Handle terminated, scattered, and unscattered medium rays
                         $if (terminated | beta.all(le_zero) | r_u.all(le_zero)) {
                             // Terminate path sampling if ray has been terminated
@@ -409,12 +410,12 @@ protected:
                         $if (scattered) {
                             $continue;
                         };
+
                         device_log("T_maj=({}, {}, {})", T_maj[0u], T_maj[1u], T_maj[2u]);
 
                         beta *= T_maj / T_maj[0u];
                         r_u *= T_maj / T_maj[0u];
                         r_l *= T_maj / T_maj[0u];
-
                     }
                 });
             };
@@ -467,7 +468,7 @@ protected:
                 auto light_sample = light_sampler()->sample(
                     *it, u_light_selection, u_light_surface, swl, time);
 
-                 // trace shadow ray
+                // trace shadow ray
                 auto occluded = pipeline().geometry()->intersect_any(light_sample.shadow_ray);
 
                 auto medium_tag = it->shape().medium_tag();
@@ -477,7 +478,6 @@ protected:
                     auto closure = medium->closure(ray, swl, time);
                     eta_next = closure->eta();
                 });
-
                 $if (has_medium) {
                     pipeline().media().dispatch(medium_tag, [&](auto medium) {
                         medium_priority = medium->priority();
@@ -485,7 +485,6 @@ protected:
                         device_log("eta={}", closure->eta());
                     });
                 };
-
                 auto medium_info = make_medium_info(medium_priority, medium_tag);
                 medium_info.medium_tag = medium_tag;
 
@@ -498,10 +497,11 @@ protected:
                 pipeline().surfaces().dispatch(surface_tag, [&](auto surface) noexcept {
                     surface->closure(call, *it, swl, wo, eta, time);
                 });
-
                 call.execute([&](auto closure) noexcept {
+                    // apply transparent map
                     UInt surface_event;
-					$if (medium_tag != medium_tracker.current().medium_tag) {
+
+                    $if (medium_tag != medium_tracker.current().medium_tag) {
 						surface_event = surface_event_skip;
 						ray = it->spawn_ray(ray->direction());
 						pdf_bsdf = 1e16f;
@@ -527,7 +527,6 @@ protected:
                                      light_sample.eval.pdf;
                             Li += w * beta * eval.f * light_sample.eval.L;
                         };
-
                         // sample material
                         auto surface_sample = closure->sample(wo, u_lobe, u_bsdf);
                         surface_event = surface_sample.event;
@@ -537,9 +536,8 @@ protected:
                         auto w = ite(surface_sample.eval.pdf > 0.f, 1.f / surface_sample.eval.pdf, 0.f);
                         beta *= w * surface_sample.eval.f;
                         r_l = r_u * w;
-
                         // apply eta scale & update medium tracker
-                        $if (has_medium) {
+						$if (has_medium) {
 							// More robust eta handling with additional checks
 							auto valid_eta = (eta > 0.001f) & (eta_next > 0.001f);
 							$switch (surface_event) {
@@ -551,7 +549,7 @@ protected:
 								};
 								$default {
 									// For reflection events, no change to eta_scale
-									device_log("==================================> eta_scale no change");
+									device_log("no change to eta_scale");
 								};
 							};
 						};
@@ -567,12 +565,13 @@ protected:
                             };
                         };
                     };
+                });
             };
 
             beta = zero_if_any_nan(beta);
             $if (beta.all(le_zero)) { $break; };
-
-            auto rr_threshold = node<MegakernelVolumePathTracing>()->rr_threshold();
+            // rr_threshold
+            auto rr_threshold = node<MegakernelVolumetricPathTracing>()->rr_threshold();
             auto luminance = beta.average() * eta_scale;  // Using average as approximation for luminance
 			auto q = clamp(max(luminance, rr_threshold), 0.05f, 1.0f);
 			$if (depth + 1u >= rr_depth) {
@@ -586,7 +585,6 @@ protected:
                 scattered, beta[0u], beta[1u], beta[2u], pdf_bsdf, Li[0u], Li[1u], Li[2u]);
             device_log("after: medium tracker size={}, priority={}, tag={}",
                        medium_tracker.size(), medium_tracker.current().priority, medium_tracker.current().medium_tag);
-        
         };
         return spectrum->srgb(swl, Li);
     }
