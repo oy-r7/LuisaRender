@@ -200,6 +200,14 @@ protected:
             $if (!medium_tracker.vacuum()) {
                 // Sample the participating medium
                 auto t_max = ite(it->valid(), length(it->p() - ray->origin()), Interaction::default_t_max);
+
+                // Initialize RNG for sampling the majorant transmittance
+                auto u1 = as<uint2>(sampler()->generate_2d());
+                auto u2 = as<uint2>(sampler()->generate_2d());
+                PCG32 rng((cast<ulong>(u1.x) << 32ull) | cast<ulong>(u1.y),
+                          (cast<ulong>(u2.x) << 32ull) | cast<ulong>(u2.y));
+
+
             };
         
         };
