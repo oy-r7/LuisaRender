@@ -382,6 +382,7 @@ protected:
                                                         depth, p.x, p.y, p.z);
                                                 };
                                             };
+                                            ans = false;
                                         };
                                     }
                                     $elif (medium_event == Medium::event_null) {
