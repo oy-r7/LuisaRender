@@ -89,6 +89,12 @@ protected:
     }
 };
 
+luisa::unique_ptr<Integrator::Instance> MegakernelVolumetricPathTracing::build(
+    Pipeline &pipeline, CommandBuffer &command_buffer) const noexcept {
+    return luisa::make_unique<MegakernelVolumetricPathTracingInstance>(
+        pipeline, command_buffer, this);
+}
+
 }// namespace luisa::render
 
 LUISA_RENDER_MAKE_SCENE_NODE_PLUGIN(luisa::render::MegakernelVolumetricPathTracing)
