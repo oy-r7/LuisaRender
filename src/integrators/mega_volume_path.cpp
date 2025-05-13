@@ -110,6 +110,11 @@ protected:
         // TODO: bug in initialization of medium tracker where the angle between shared edge is small
         auto depth_track = def<uint>(0u);
 		auto max_iterations = 644u;
+
+        $while (true) {
+
+        };
+        
         
         return spectrum->srgb(swl, Li);
     }
