@@ -96,6 +96,15 @@ protected:
         SampledSpectrum r_u{swl.dimension(), 1.f}, r_l{swl.dimension(), 1.f};
         auto rr_depth = node<MegakernelVolumetricPathTracing>()->rr_depth();
         MediumTracker medium_tracker;
+
+        // functions
+        auto le_zero = [](auto b) noexcept { return b <= 0.f; };
+
+        // initialize medium tracker
+        auto env_medium_tag = pipeline().environment_medium_tag();
+        pipeline().media().dispatch(env_medium_tag, [&](auto medium) {
+            medium_tracker.enter(medium->priority(), make_medium_info(medium->priority(), env_medium_tag));
+        });
         
         return spectrum->srgb(swl, Li);
     }
