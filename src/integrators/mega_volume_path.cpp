@@ -156,6 +156,11 @@ protected:
                     };
                 });
             };
+            device_log("medium tracker size={}", medium_tracker.size());
+            auto dir = ray->direction();
+            auto origin = ray->origin();
+            device_log("ray->origin()=({}, {}, {})", origin.x, origin.y, origin.z);
+            device_log("ray->direction()=({}, {}, {})", dir.x, dir.y, dir.z);
         };
         device_log("Final medium tracker size={}", medium_tracker.size());
         
