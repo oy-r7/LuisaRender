@@ -85,23 +85,17 @@ protected:
 
     [[nodiscard]] Float3 Li(const Camera::Instance *camera, Expr<uint> frame_index,
                             Expr<uint2> pixel_id, Expr<float> time) const noexcept override {
-        Float3 wo_local, wi_local;
-        $if (it->shape().has_surface()) {
-            PolymorphicCall<Surface::Closure> call;
-            pipeline().surfaces().dispatch(it->shape().surface_tag(), [&](auto surface) noexcept {
-                surface->closure(call, *it, swl, wo, 1.f, time);
-            });
-            call.execute([&](auto closure) noexcept {
-                auto shading = closure->it().shading();
-                wo_local = shading.world_to_local(wo);
-                wi_local = shading.world_to_local(wi);
-            });
-        }
-        $else {
-            auto shading = it->shading();
-            wo_local = shading.world_to_local(wo);
-            wi_local = shading.world_to_local(wi);
-        };
+        sampler()->start(pixel_id, frame_index);
+        auto u_filter = sampler()->generate_pixel_2d();
+        auto u_lens = camera->node()->requires_lens_sampling() ? sampler()->generate_2d() : make_float2(.5f);
+        auto [camera_ray, _, camera_weight] = camera->generate_ray(pixel_id, time, u_filter, u_lens);
+        auto spectrum = pipeline().spectrum();
+        auto swl = spectrum->sample(spectrum->node()->is_fixed() ? 0.f : sampler()->generate_1d());
+        SampledSpectrum beta{swl.dimension(), camera_weight};
+        SampledSpectrum Li{swl.dimension(), 0.f};
+        SampledSpectrum r_u{swl.dimension(), 1.f}, r_l{swl.dimension(), 1.f};
+        auto rr_depth = node<MegakernelVolumetricPathTracing>()->rr_depth();
+        MediumTracker medium_tracker;
         
         return spectrum->srgb(swl, Li);
     }
