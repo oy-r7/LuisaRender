@@ -167,6 +167,10 @@ protected:
             depth_track += 1u;
         };
         device_log("Final medium tracker size={}", medium_tracker.size());
+
+        ray = camera_ray;
+        auto pdf_bsdf = def(1e16f);
+        auto eta_scale = def(1.f);
         
         
         return spectrum->srgb(swl, Li);
