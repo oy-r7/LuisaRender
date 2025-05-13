@@ -51,38 +51,7 @@ protected:
         Instance::_render_one_camera(command_buffer, camera);
     }
 
-    [[nodiscard]] UInt event(const SampledWavelengths &swl, luisa::shared_ptr<Interaction> it, Expr<float> time,
-                             Expr<float3> wo, Expr<float3> wi) const noexcept {
-        Float3 wo_local, wi_local;
-        $if (it->shape().has_surface()) {
-            PolymorphicCall<Surface::Closure> call;
-            pipeline().surfaces().dispatch(it->shape().surface_tag(), [&](auto surface) noexcept {
-                surface->closure(call, *it, swl, wo, 1.f, time);
-            });
-            call.execute([&](auto closure) noexcept {
-                auto shading = closure->it().shading();
-                wo_local = shading.world_to_local(wo);
-                wi_local = shading.world_to_local(wi);
-            });
-        }
-        $else {
-            auto shading = it->shading();
-            wo_local = shading.world_to_local(wo);
-            wi_local = shading.world_to_local(wi);
-        };
-        device_log(
-            "wo_local: ({}, {}, {}), wi_local: ({}, {}, {})",
-            wo_local.x, wo_local.y, wo_local.z,
-            wi_local.x, wi_local.y, wi_local.z);
-        return ite(
-            wo_local.z * wi_local.z > 0.f,
-            Surface::event_reflect,
-            ite(
-                wi_local.z > 0.f,
-                Surface::event_exit,
-                Surface::event_enter));
-    }
-
+    
     [[nodiscard]] Float3 Li(const Camera::Instance *camera, Expr<uint> frame_index,
                             Expr<uint2> pixel_id, Expr<float> time) const noexcept override {
         sampler()->start(pixel_id, frame_index);
@@ -123,39 +92,6 @@ protected:
 
             device_log("depth={}", depth_track);
 
-            $if (it->shape().has_medium()) {
-                auto surface_tag = it->shape().surface_tag();
-                auto medium_tag = it->shape().medium_tag();
-
-                auto medium_priority = def<uint>(0u);
-                pipeline().media().dispatch(medium_tag, [&](auto medium) {
-                    medium_priority = medium->priority();
-                });
-                auto medium_info = make_medium_info(medium_priority, medium_tag);
-
-                // deal with medium tracker
-                auto surface_event = event(swl, it, time, -ray->direction(), ray->direction());
-                pipeline().surfaces().dispatch(surface_tag, [&](auto surface) {
-                    device_log("surface event={}", surface_event);
-                    // update medium tracker
-                    $switch (surface_event) {
-                        $case (Surface::event_enter) {
-                            medium_tracker.enter(medium_priority, medium_info);
-                            device_log("enter: priority={}, medium_tag={}", medium_priority, medium_tag);
-                        };
-                        $case (Surface::event_exit) {
-                            $if (medium_tracker.exist(medium_priority, medium_info)) {
-                                medium_tracker.exit(medium_priority, medium_info);
-                                device_log("exit exist: priority={}, medium_tag={}", medium_priority, medium_tag);
-                            }
-                            $else {
-                                medium_tracker.enter(medium_priority, medium_info);
-                                device_log("exit nonexistent: priority={}, medium_tag={}", medium_priority, medium_tag);
-                            };
-                        };
-                    };
-                });
-            };
             device_log("medium tracker size={}", medium_tracker.size());
             auto dir = ray->direction();
             auto origin = ray->origin();
@@ -456,6 +392,17 @@ protected:
                 ray = it->spawn_ray(ray->direction());
                 pdf_bsdf = 1e16f;
             }
+            $else {
+                 generate uniform samples
+                auto u_light_selection = sampler()->generate_1d();
+                auto u_light_surface = sampler()->generate_2d();
+                auto u_lobe = sampler()->generate_1d();
+                auto u_bsdf = sampler()->generate_2d();
+
+                // sample one light
+                auto light_sample = light_sampler()->sample(
+                    *it, u_light_selection, u_light_surface, swl, time);
+            };
         
         };
         return spectrum->srgb(swl, Li);
