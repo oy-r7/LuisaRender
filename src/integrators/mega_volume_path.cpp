@@ -362,8 +362,14 @@ protected:
 
                                                         Li += beta * f_hat * T_ray * light_sample.eval.L / (r_l + r_u).average();
                                                     };
-
                                                 };
+
+                                                // Sample new direction at real scattering event
+                                                Float2 u = sampler()->generate_2d();
+                                                auto ps = closure->phase_function()->sample_p(-ray->direction(), u);
+                                                $if (!ps.valid | (ps.pdf == 0.f)) {
+                                                    terminated = true;
+                                                }
                                             };
                                         };
                                     }
