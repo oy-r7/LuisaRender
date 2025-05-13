@@ -171,6 +171,9 @@ protected:
         ray = camera_ray;
         auto pdf_bsdf = def(1e16f);
         auto eta_scale = def(1.f);
+        auto depth = def(0u);
+		auto iteration_count = def(0u);
+        auto max_depth = node<MegakernelVolumePathTracing>()->max_depth();
         
         
         return spectrum->srgb(swl, Li);
