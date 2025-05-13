@@ -85,6 +85,19 @@ protected:
 
     [[nodiscard]] Float3 Li(const Camera::Instance *camera, Expr<uint> frame_index,
                             Expr<uint2> pixel_id, Expr<float> time) const noexcept override {
+        Float3 wo_local, wi_local;
+        $if (it->shape().has_surface()) {
+            PolymorphicCall<Surface::Closure> call;
+            pipeline().surfaces().dispatch(it->shape().surface_tag(), [&](auto surface) noexcept {
+                surface->closure(call, *it, swl, wo, 1.f, time);
+            });
+            call.execute([&](auto closure) noexcept {
+                auto shading = closure->it().shading();
+                wo_local = shading.world_to_local(wo);
+                wi_local = shading.world_to_local(wi);
+            });
+        }
+        
         return spectrum->srgb(swl, Li);
     }
 };
