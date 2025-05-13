@@ -195,6 +195,10 @@ protected:
             device_log("before: medium tracker size={}, priority={}, tag={}",
                        medium_tracker.size(), medium_tracker.current().priority, medium_tracker.current().medium_tag);
             device_log("it->p(): ({}, {}, {})", it->p().x, it->p().y, it->p().z);
+
+            // sample the participating medium
+            $if (!medium_tracker.vacuum()) {
+            };
         
         };
         return spectrum->srgb(swl, Li);
