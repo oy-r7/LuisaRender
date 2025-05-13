@@ -278,6 +278,13 @@ protected:
                                             $if (!beta.is_zero() & !r_u.is_zero()) {
                                                 // Sample direct lighting at volume scattering event
                                                 // generate uniform samples
+                                                auto u_light_selection = sampler()->generate_1d();
+                                                auto u_light_surface = sampler()->generate_2d();
+
+                                                // sample one light
+                                                Interaction light_it{};
+                                                auto light_sample = light_sampler()->sample(
+                                                    light_it, u_light_selection, u_light_surface, swl, time);
                                             };
                                         };
                                     }
