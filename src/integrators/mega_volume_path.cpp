@@ -309,6 +309,12 @@ protected:
                                                             Ld_medium_zero = true;
                                                             $break;
                                                         };
+
+                                                        Float t_max = ite(si->valid(), length(si->p() - light_ray->origin()), one_minus_epsilon);
+                                                        Float u = rng.uniform_float();
+                                                        SampledSpectrum T_maj = closure_p->sampleT_maj(
+                                                            t_max, u, rng,
+                                                            });
                                                     };
 
                                                 };
