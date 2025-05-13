@@ -333,6 +333,11 @@ protected:
 
                                                                 return ite(T_ray.is_zero(), false, true);
                                                             });
+
+                                                        auto normalization_factor = max(T_maj[0u], 1e-10f);
+														T_ray *= T_maj / normalization_factor;
+														r_l *= T_maj / normalization_factor;
+														r_u *= T_maj / normalization_factor;
                                                     };
 
                                                 };
