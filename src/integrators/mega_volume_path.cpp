@@ -40,6 +40,9 @@ class MegakernelVolumetricPathTracingInstance final : public ProgressiveIntegrat
 public:
     using ProgressiveIntegrator::Instance::Instance;
 
+protected:
+
+};
 
 }// namespace luisa::render
 
