@@ -177,6 +177,11 @@ protected:
 
         $while (depth < max_depth) {
 			// Increment and check iteration count to prevent infinite loops
+            iteration_count += 1u;
+			$if (iteration_count > max_depth * 10u) {  // Safety threshold
+				device_log("Breaking loop due to iteration limit");
+				$break;  // Force break to prevent hanging
+			};
         
         };
         return spectrum->srgb(swl, Li);
