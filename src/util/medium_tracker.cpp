@@ -26,9 +26,11 @@ Bool MediumTracker::true_hit(Expr<uint> priority) const noexcept {
 
 void MediumTracker::enter(Expr<uint> priority, Expr<MediumInfo> value) noexcept {
     $if(_size == capacity) {
+#ifndef NDEBUG
         device_log(
             "[error] Medium stack overflow when trying to enter priority={}, medium_tag={}",
             priority, value.medium_tag);
+#endif
     }
     $else {
         _size += 1u;
@@ -61,9 +63,11 @@ void MediumTracker::exit(Expr<uint> priority, Expr<MediumInfo> value) noexcept {
         _medium_list[_size] = make_medium_info(Medium::VACUUM_PRIORITY, Medium::INVALID_TAG);
     }
     $else {
+#ifndef NDEBUG
         device_log(
             "[error] Medium stack trying to exit nonexistent priority={}, medium_tag={}",
             priority, value.medium_tag);
+#endif
     };
 }
 

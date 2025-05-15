@@ -11,6 +11,12 @@
 #include <util/rng.h>
 #include <base/phase_function.h>
 
+#ifndef NDEBUG
+#define LUISA_DEVICE_DEBUG_LOG(...) ::luisa::compute::device_log(__VA_ARGS__)
+#else
+#define LUISA_DEVICE_DEBUG_LOG(...) static_cast<void>(0)
+#endif
+
 namespace luisa::render {
 
 using namespace compute;
@@ -73,7 +79,7 @@ protected:
             wi_local = shading.world_to_local(wi);
         };
 
-        device_log(
+        LUISA_DEVICE_DEBUG_LOG(
             "wo_local: ({}, {}, {}), wi_local: ({}, {}, {})",
             wo_local.x, wo_local.y, wo_local.z,
             wi_local.x, wi_local.y, wi_local.z);
@@ -111,19 +117,19 @@ protected:
         auto ray = camera_ray;
         // TODO: bug in initialization of medium tracker where the angle between shared edge is small
         auto depth_track = def<uint>(0u);
-		auto max_iterations = 644u;
-		
+        auto max_iterations = 644u;
+
         $while (true) {
             auto it = pipeline().geometry()->intersect(ray);
             $if (!it->valid()) { $break; };
-			
-			depth_track += 1u;
-			$if (depth_track > max_iterations) {
-				device_log("[WARNING] Max iteration limit reached in geometry intersect loop. Breaking forcefully.");
-				$break;
-			};
 
-            device_log("depth={}", depth_track);
+            depth_track += 1u;
+            $if (depth_track > max_iterations) {
+                LUISA_DEVICE_DEBUG_LOG("[WARNING] Max iteration limit reached in geometry intersect loop. Breaking forcefully.");
+                $break;
+            };
+
+            LUISA_DEVICE_DEBUG_LOG("depth={}", depth_track);
 
             $if (it->shape().has_medium()) {
                 auto surface_tag = it->shape().surface_tag();
@@ -138,51 +144,51 @@ protected:
                 // deal with medium tracker
                 auto surface_event = event(swl, it, time, -ray->direction(), ray->direction());
                 pipeline().surfaces().dispatch(surface_tag, [&](auto surface) {
-                    device_log("surface event={}", surface_event);
+                    LUISA_DEVICE_DEBUG_LOG("surface event={}", surface_event);
                     // update medium tracker
                     $switch (surface_event) {
                         $case (Surface::event_enter) {
                             medium_tracker.enter(medium_priority, medium_info);
-                            device_log("enter: priority={}, medium_tag={}", medium_priority, medium_tag);
+                            LUISA_DEVICE_DEBUG_LOG("enter: priority={}, medium_tag={}", medium_priority, medium_tag);
                         };
                         $case (Surface::event_exit) {
                             $if (medium_tracker.exist(medium_priority, medium_info)) {
                                 medium_tracker.exit(medium_priority, medium_info);
-                                device_log("exit exist: priority={}, medium_tag={}", medium_priority, medium_tag);
+                                LUISA_DEVICE_DEBUG_LOG("exit exist: priority={}, medium_tag={}", medium_priority, medium_tag);
                             }
                             $else {
                                 medium_tracker.enter(medium_priority, medium_info);
-                                device_log("exit nonexistent: priority={}, medium_tag={}", medium_priority, medium_tag);
+                                LUISA_DEVICE_DEBUG_LOG("exit nonexistent: priority={}, medium_tag={}", medium_priority, medium_tag);
                             };
                         };
                     };
                 });
             };
-            device_log("medium tracker size={}", medium_tracker.size());
+            LUISA_DEVICE_DEBUG_LOG("medium tracker size={}", medium_tracker.size());
             auto dir = ray->direction();
             auto origin = ray->origin();
-            device_log("ray->origin()=({}, {}, {})", origin.x, origin.y, origin.z);
-            device_log("ray->direction()=({}, {}, {})", dir.x, dir.y, dir.z);
-            device_log("it->p()=({}, {}, {})", it->p().x, it->p().y, it->p().z);
-            device_log("it->shape().has_medium()={}", it->shape().has_medium());
+            LUISA_DEVICE_DEBUG_LOG("ray->origin()=({}, {}, {})", origin.x, origin.y, origin.z);
+            LUISA_DEVICE_DEBUG_LOG("ray->direction()=({}, {}, {})", dir.x, dir.y, dir.z);
+            LUISA_DEVICE_DEBUG_LOG("it->p()=({}, {}, {})", it->p().x, it->p().y, it->p().z);
+            LUISA_DEVICE_DEBUG_LOG("it->shape().has_medium()={}", it->shape().has_medium());
             ray = it->spawn_ray(ray->direction());
             depth_track += 1u;
         };
-        device_log("Final medium tracker size={}", medium_tracker.size());
+        LUISA_DEVICE_DEBUG_LOG("Final medium tracker size={}", medium_tracker.size());
 
         ray = camera_ray;
         auto pdf_bsdf = def(1e16f);
         auto eta_scale = def(1.f);
         auto depth = def(0u);
-		auto iteration_count = def(0u);
+        auto iteration_count = def(0u);
         auto max_depth = node<MegakernelVolumetricPathTracing>()->max_depth();
         $while (depth < max_depth) {
-			// Increment and check iteration count to prevent infinite loops
-			iteration_count += 1u;
-			$if (iteration_count > max_depth * 10u) {  // Safety threshold
-				device_log("Breaking loop due to iteration limit");
-				$break;  // Force break to prevent hanging
-			};
+            // Increment and check iteration count to prevent infinite loops
+            iteration_count += 1u;
+            $if (iteration_count > max_depth * 10u) {// Safety threshold
+                LUISA_DEVICE_DEBUG_LOG("Breaking loop due to iteration limit");
+                $break;// Force break to prevent hanging
+            };
             auto eta = def(1.f);
             auto u_rr = def(0.f);
             Bool scattered = def(false);
@@ -192,10 +198,10 @@ protected:
             auto it = pipeline().geometry()->intersect(ray);
             auto has_medium = it->shape().has_medium();
 
-            device_log("depth={}", depth + 1u);
-            device_log("before: medium tracker size={}, priority={}, tag={}",
-                       medium_tracker.size(), medium_tracker.current().priority, medium_tracker.current().medium_tag);
-            device_log("it->p(): ({}, {}, {})", it->p().x, it->p().y, it->p().z);
+            LUISA_DEVICE_DEBUG_LOG("depth={}", depth + 1u);
+            LUISA_DEVICE_DEBUG_LOG("before: medium tracker size={}, priority={}, tag={}",
+                                   medium_tracker.size(), medium_tracker.current().priority, medium_tracker.current().medium_tag);
+            LUISA_DEVICE_DEBUG_LOG("it->p(): ({}, {}, {})", it->p().x, it->p().y, it->p().z);
 
             // sample the participating medium
             $if (!medium_tracker.vacuum()) {
@@ -255,13 +261,13 @@ protected:
                                     UInt medium_event = Medium::sample_event(pAbsorb, pScatter, pNull, um);
                                     // don't use switch-case here, because of local variable definition
                                     $if (medium_event == Medium::event_absorb) {
-                                        device_log("Absorb");
+                                        LUISA_DEVICE_DEBUG_LOG("Absorb");
                                         // Handle absorption along ray path
                                         terminated = true;
                                         ans = false;
                                     }
                                     $elif (medium_event == Medium::event_scatter) {
-                                        device_log("Scatter");
+                                        LUISA_DEVICE_DEBUG_LOG("Scatter");
                                         // Handle scattering along ray path
                                         // Stop path sampling if maximum depth has been reached
                                         depth += 1u;
@@ -296,15 +302,15 @@ protected:
                                                     SampledSpectrum T_ray{swl.dimension(), 1.f}, r_l{swl.dimension(), 1.f}, r_u{swl.dimension(), 1.f};
 
                                                     auto shadow_iterations = def(0u);
-													$while (any(light_ray->direction() != 0.f)) {
-														// Add iteration guard:
-														shadow_iterations += 1u;
-														$if (shadow_iterations > 64u) {
-															device_log("[WARNING] Exceeded shadow iteration limit. Forcing break.");
-															Ld_medium_zero = true;
-															$break;
-														};
-														
+                                                    $while (any(light_ray->direction() != 0.f)) {
+                                                        // Add iteration guard:
+                                                        shadow_iterations += 1u;
+                                                        $if (shadow_iterations > 64u) {
+                                                            LUISA_DEVICE_DEBUG_LOG("[WARNING] Exceeded shadow iteration limit. Forcing break.");
+                                                            Ld_medium_zero = true;
+                                                            $break;
+                                                        };
+
                                                         auto si = pipeline().geometry()->intersect(light_ray);
                                                         $if (si->valid() & si->shape().has_surface()) {
                                                             Ld_medium_zero = true;
@@ -316,7 +322,7 @@ protected:
                                                             t_max, u, rng,
                                                             [&](luisa::unique_ptr<Medium::Closure> closure_p,
                                                                 SampledSpectrum sigma_maj, SampledSpectrum T_maj) -> Bool {
-																device_log("[WARNING] SampledSpectrum T_maj.");
+                                                                LUISA_DEVICE_DEBUG_LOG("[WARNING] SampledSpectrum T_maj.");
                                                                 // Update ray transmittance estimate at sampled point
                                                                 // Update T_ray and PDFs using ratio-tracking estimator
                                                                 SampledSpectrum sigma_n = max(sigma_maj - closure_p->sigma_a() - closure_p->sigma_s(), 0.f);
@@ -334,26 +340,26 @@ protected:
                                                                 return ite(T_ray.is_zero(), false, true);
                                                             });
 
-														// Avoid potential division by very small values
-														auto normalization_factor = max(T_maj[0u], 1e-10f);
-														T_ray *= T_maj / normalization_factor;
-														r_l *= T_maj / normalization_factor;
-														r_u *= T_maj / normalization_factor;
+                                                        // Avoid potential division by very small values
+                                                        auto normalization_factor = max(T_maj[0u], 1e-10f);
+                                                        T_ray *= T_maj / normalization_factor;
+                                                        r_l *= T_maj / normalization_factor;
+                                                        r_u *= T_maj / normalization_factor;
 
-														// More robust check for early termination
-														$if (T_ray.max() < 1e-4f) {
-															T_ray = SampledSpectrum{swl.dimension(), 0.f};  // Set to zero explicitly
-															Ld_medium_zero = true;
-															$break;
-														};
-														
+                                                        // More robust check for early termination
+                                                        $if (T_ray.max() < 1e-4f) {
+                                                            T_ray = SampledSpectrum{swl.dimension(), 0.f};// Set to zero explicitly
+                                                            Ld_medium_zero = true;
+                                                            $break;
+                                                        };
+
                                                         $if (!si->valid()) {
                                                             $break;
                                                         };
                                                         light_ray = si->spawn_ray_to(light_sample.shadow_ray->origin());
                                                     };
-													
-													$if (!Ld_medium_zero) {
+
+                                                    $if (!Ld_medium_zero) {
                                                         auto phase_function = closure->phase_function();
                                                         auto f_hat = phase_function->p(wo, wi);
                                                         auto scatter_pdf = phase_function->pdf(wo, wi);
@@ -378,7 +384,7 @@ protected:
                                                     scattered = true;
                                                     auto p = closure_p->ray()->origin();
                                                     ray = make_ray(p, ps.wi);
-                                                    device_log(
+                                                    LUISA_DEVICE_DEBUG_LOG(
                                                         "Medium scattering event at depth={}, p=({}, {}, {})",
                                                         depth, p.x, p.y, p.z);
                                                 };
@@ -387,7 +393,7 @@ protected:
                                         };
                                     }
                                     $elif (medium_event == Medium::event_null) {
-                                        device_log("Null");
+                                        LUISA_DEVICE_DEBUG_LOG("Null");
                                         // Handle null scattering along ray path
                                         SampledSpectrum sigma_n = max(sigma_maj - closure_p->sigma_a() - closure_p->sigma_s(), 0.f);
                                         Float pdf = T_maj[0u] * sigma_n[0u];
@@ -412,7 +418,7 @@ protected:
                             $continue;
                         };
 
-                        device_log("T_maj=({}, {}, {})", T_maj[0u], T_maj[1u], T_maj[2u]);
+                        LUISA_DEVICE_DEBUG_LOG("T_maj=({}, {}, {})", T_maj[0u], T_maj[1u], T_maj[2u]);
 
                         beta *= T_maj / T_maj[0u];
                         r_u *= T_maj / T_maj[0u];
@@ -483,7 +489,7 @@ protected:
                     pipeline().media().dispatch(medium_tag, [&](auto medium) {
                         medium_priority = medium->priority();
                         auto closure = medium->closure(ray, swl, time);
-                        device_log("eta={}", closure->eta());
+                        LUISA_DEVICE_DEBUG_LOG("eta={}", closure->eta());
                     });
                 };
                 auto medium_info = make_medium_info(medium_priority, medium_tag);
@@ -503,18 +509,18 @@ protected:
                     UInt surface_event;
 
                     $if (medium_tag != medium_tracker.current().medium_tag) {
-						surface_event = surface_event_skip;
-						ray = it->spawn_ray(ray->direction());
-						pdf_bsdf = 1e16f;
-						// Reset medium tracker if we detect inconsistency
-						$if (medium_tracker.size() > 10) {  // Arbitrary threshold for likely corruption
-							medium_tracker = MediumTracker{};  // Reset tracker
-							auto env_medium_tag = pipeline().environment_medium_tag();
-							pipeline().media().dispatch(env_medium_tag, [&](auto medium) {
-								medium_tracker.enter(medium->priority(), make_medium_info(medium->priority(), env_medium_tag));
-							});
-						};
-					}
+                        surface_event = surface_event_skip;
+                        ray = it->spawn_ray(ray->direction());
+                        pdf_bsdf = 1e16f;
+                        // Reset medium tracker if we detect inconsistency
+                        $if (medium_tracker.size() > 10) {   // Arbitrary threshold for likely corruption
+                            medium_tracker = MediumTracker{};// Reset tracker
+                            auto env_medium_tag = pipeline().environment_medium_tag();
+                            pipeline().media().dispatch(env_medium_tag, [&](auto medium) {
+                                medium_tracker.enter(medium->priority(), make_medium_info(medium->priority(), env_medium_tag));
+                            });
+                        };
+                    }
                     $else {
                         if (auto dispersive = closure->is_dispersive()) {
                             $if (*dispersive) { swl.terminate_secondary(); };
@@ -538,22 +544,22 @@ protected:
                         beta *= w * surface_sample.eval.f;
                         r_l = r_u * w;
                         // apply eta scale & update medium tracker
-						$if (has_medium) {
-							// More robust eta handling with additional checks
-							auto valid_eta = (eta > 0.001f) & (eta_next > 0.001f);
-							$switch (surface_event) {
-								$case (Surface::event_enter) {
-									eta_scale = ite(valid_eta, sqr(eta_next / eta), 1.0f);
-								};
-								$case (Surface::event_exit) {
-									eta_scale = ite(valid_eta, sqr(eta / eta_next), 1.0f);
-								};
-								$default {
-									// For reflection events, no change to eta_scale
-									device_log("no change to eta_scale");
-								};
-							};
-						};
+                        $if (has_medium) {
+                            // More robust eta handling with additional checks
+                            auto valid_eta = (eta > 0.001f) & (eta_next > 0.001f);
+                            $switch (surface_event) {
+                                $case (Surface::event_enter) {
+                                    eta_scale = ite(valid_eta, sqr(eta_next / eta), 1.0f);
+                                };
+                                $case (Surface::event_exit) {
+                                    eta_scale = ite(valid_eta, sqr(eta / eta_next), 1.0f);
+                                };
+                                $default {
+                                    // For reflection events, no change to eta_scale
+                                    LUISA_DEVICE_DEBUG_LOG("no change to eta_scale");
+                                };
+                            };
+                        };
                     };
 
                     $if (has_medium) {
@@ -573,19 +579,19 @@ protected:
             $if (beta.all(le_zero)) { $break; };
             // rr_threshold
             auto rr_threshold = node<MegakernelVolumetricPathTracing>()->rr_threshold();
-            auto luminance = beta.average() * eta_scale;  // Using average as approximation for luminance
-			auto q = clamp(max(luminance, rr_threshold), 0.05f, 1.0f);
-			$if (depth + 1u >= rr_depth) {
-				$if (u_rr >= q) { $break; };  // Simpler termination condition
-				beta *= 1.0f / q;  // Always scale by 1/q when continuing
-			};
+            auto luminance = beta.average() * eta_scale;// Using average as approximation for luminance
+            auto q = clamp(max(luminance, rr_threshold), 0.05f, 1.0f);
+            $if (depth + 1u >= rr_depth) {
+                $if (u_rr >= q) { $break; };// Simpler termination condition
+                beta *= 1.0f / q;           // Always scale by 1/q when continuing
+            };
             depth += 1u;
 
-            device_log(
+            LUISA_DEVICE_DEBUG_LOG(
                 "scattered={}, beta=({}, {}, {}), pdf_bsdf={}, Li: ({}, {}, {})",
                 scattered, beta[0u], beta[1u], beta[2u], pdf_bsdf, Li[0u], Li[1u], Li[2u]);
-            device_log("after: medium tracker size={}, priority={}, tag={}",
-                       medium_tracker.size(), medium_tracker.current().priority, medium_tracker.current().medium_tag);
+            LUISA_DEVICE_DEBUG_LOG("after: medium tracker size={}, priority={}, tag={}",
+                                   medium_tracker.size(), medium_tracker.current().priority, medium_tracker.current().medium_tag);
         };
         return spectrum->srgb(swl, Li);
     }
