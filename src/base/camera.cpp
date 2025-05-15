@@ -212,14 +212,23 @@ Camera::Instance::Instance(Pipeline &pipeline, CommandBuffer &command_buffer, co
 Camera::Sample Camera::Instance::generate_ray(Expr<uint2> pixel_coord, Expr<float> time,
                                               Expr<float2> u_filter, Expr<float2> u_lens) const noexcept {
     auto [filter_offset, filter_weight] = filter()->sample(u_filter);
-    auto pixel = make_float2(pixel_coord) + .5f + filter_offset;
+    auto pixel = make_float2(pixel_coord) + 0.5f + filter_offset;
     auto [ray, weight] = _generate_ray_in_camera_space(pixel, u_lens, time);
     weight *= filter_weight;
+    
     auto c2w = camera_to_world();
     auto o = make_float3(c2w * make_float4(ray->origin(), 1.f));
-    auto d = normalize(make_float3x3(c2w) * ray->direction());
+    
+    // Transform direction from camera space to world space.
+    auto d_camera = make_float3x3(c2w) * ray->direction();
+    auto len = length(d_camera);
+    // Use 'ite' (if-then-else) with proper DSL vector types:
+    //auto d = normalize(ite(len < 1e-5f, make_float3(0.f, 0.f, -1.f), d_camera));
+	auto d = ite(len < 1e-7f, make_float3(0.f, 0.f, -1.f), d_camera/len);
+    
     ray->set_origin(o);
-    ray->set_direction(d);
+    ray->set_direction(normalize(d));
+    
     return {std::move(ray), pixel, weight};
 }
 
