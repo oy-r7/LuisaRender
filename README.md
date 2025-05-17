@@ -1,4 +1,4 @@
-# LuisaRender
+# LuisaRender [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/LuisaGroup/LuisaRender)
 
 LuisaRender is a high-performance cross-platform Monte-Carlo renderer for stream architectures based
 on [LuisaCompute](https://github.com/LuisaGroup/LuisaCompute).
