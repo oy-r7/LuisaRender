@@ -56,12 +56,21 @@ In case you need to run the ISPC backend, download the [ISPC compiler executable
 
 Note: On Windows, please remember to replace the backslashes `\\` in the paths with `/` when passing arguments to CMake.
 
-## Usage
+# Usage
 
-1. The renderer's executable file is named `luisa-render-cli`, which locates in build directory
-2. Usage can be accessed by running `luisa-render-cli --help`
-3. The renderer can be simply run as
-    ```bash
-    luisa-render-cli -b <backend> <scene-file>
-    ```
-4. Example scene files are under `data/scenes`
+Use command line to execute LuisaRender:
+```bash
+<build-fodler>/bin/luisa-render-cli -b <backend> [-d <device-index>] <scene-file>
+```
+
+To print the help message about the command line arguments, simply type
+```bash
+<build-fodler>/bin/luisa-render-cli -h
+```
+or
+```bash
+<build-fodler>/bin/luisa-render-cli --help
+```
+
+Demo scenes can be found in a separate [repo](https://github.com/LuisaGroup/LuisaRenderScenes)
+
