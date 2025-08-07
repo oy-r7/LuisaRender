@@ -56,9 +56,9 @@
 }
 #endif
 
-[[nodiscard]] auto parse_cli_options(int argc, const char *const *argv) noexcept {
+[[nodiscard]] auto parse_cli_options(int argc, const char *const *argv, const std::string& backend_hints) noexcept {
     cxxopts::Options cli{"luisa-render-cli"};
-    cli.add_option("", "b", "backend", "Compute backend name", cxxopts::value<luisa::string>(), "<backend>");
+    cli.add_option("", "b", "backend", backend_hints, cxxopts::value<luisa::string>(), "<backend>");
     cli.add_option("", "d", "device", "Compute device index", cxxopts::value<std::size_t>()->default_value("0"), "<index>");
     cli.add_option("", "", "scene", "Path to scene description file", cxxopts::value<std::filesystem::path>(), "<file>");
     cli.add_option("", "D", "define", "Parameter definitions to override scene description macros.",
@@ -163,7 +163,11 @@ int main(int argc, char *argv[]) {
         LUISA_INFO("Found CLI Macro: {} = {}", k, v);
     }
 
-    auto options = parse_cli_options(argc, argv);
+    auto backend_hints = fmt::format(
+        "Compute backend name (possible values: {})",
+        fmt::join(context.installed_backends(), ", ")
+    );
+    auto options = parse_cli_options(argc, argv, backend_hints);
     if (options["verbose"].as<bool>()) { log_level_verbose(); }
 
     auto backend = options["backend"].as<luisa::string>();
