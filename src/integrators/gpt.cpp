@@ -241,6 +241,15 @@ public:
         return v;
     }
 
+    auto read_effective_spp(Expr<uint2> p) noexcept {
+        auto spp = def(0.f);
+        if (_image) {
+            auto index = p.y * _resolution.x + p.x;
+            spp = _image->read(index * 4u + 3u);
+        }
+        return spp;
+    }
+
     void write(Expr<uint2> p, Expr<float3> value, Expr<float> effective_spp = 1.f) noexcept {
         if (_image) {
             auto index = p.y * _resolution.x + p.x;
@@ -687,6 +696,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                     };
                                 }
                                 $else {
+                                    // TODO: Check if this is correct
                                     shift_successful = false;
                                 };
                             };
@@ -916,6 +926,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                     };
                                 }
                                 $else {
+                                    // TODO: Check if this is correct
                                     shifted.alive = false;
                                 };
                             }
@@ -928,16 +939,12 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                 // Deny shifts between Dirac and non-Dirac BSDFs. TODO
 
                                 // TODO check if wo is wo
-                                // Combined closures
                                 auto shifted_bsdf_eta = def(0.f);// eta at previous main it
-                                auto outgoing_direction = shifted.it.shading().local_to_world(tangent_space_outgoing_direction);
-                                auto eval = Surface::Evaluation::zero(swl.dimension());
                                 pipeline().surfaces().dispatch(shifted.it.shape().surface_tag(), [&](auto surface) noexcept {
                                     PolymorphicCall<Surface::Closure> shifted_call;
                                     surface->closure(shifted_call, shifted.it, swl, -shifted.ray->direction(), 1.f, time);
                                     shifted_call.execute([&](auto closure) noexcept {
                                         shifted_bsdf_eta = closure->eta().value_or(1.f);
-                                        eval = closure->evaluate(-shifted.ray->direction(), outgoing_direction);
                                     });
                                 });
 
@@ -962,6 +969,16 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                     shifted.alive = false;
                                     shift_failed_flag = true;
                                 };
+
+                                auto outgoing_direction = shifted.it.shading().local_to_world(tangent_space_outgoing_direction);
+                                auto eval = Surface::Evaluation::zero(swl.dimension());
+                                pipeline().surfaces().dispatch(shifted.it.shape().surface_tag(), [&](auto surface) noexcept {
+                                    PolymorphicCall<Surface::Closure> shifted_call;
+                                    surface->closure(shifted_call, shifted.it, swl, -shifted.ray->direction(), 1.f, time);
+                                    shifted_call.execute([&](auto closure) noexcept {
+                                        eval = closure->evaluate(-shifted.ray->direction(), outgoing_direction);
+                                    });
+                                });
 
                                 $if (!shift_failed_flag) {
                                     $if (eval.pdf <= 0.f) {
@@ -1107,8 +1124,12 @@ void GradientPathTracingInstance::_render_one_camera(
 
     luisa::unordered_map<luisa::string, luisa::unique_ptr<ImageBuffer>> image_buffers;
     if (!node<GradientPathTracing>()->central_radiance()) {
+        image_buffers.emplace("gradient_x_single_frame", luisa::make_unique<ImageBuffer>(pipeline(), resolution));
+        image_buffers.emplace("gradient_y_single_frame", luisa::make_unique<ImageBuffer>(pipeline(), resolution));
         image_buffers.emplace("gradient_x", luisa::make_unique<ImageBuffer>(pipeline(), resolution));
         image_buffers.emplace("gradient_y", luisa::make_unique<ImageBuffer>(pipeline(), resolution));
+        image_buffers.emplace("gradient_x_variance", luisa::make_unique<ImageBuffer>(pipeline(), resolution));
+        image_buffers.emplace("gradient_y_variance", luisa::make_unique<ImageBuffer>(pipeline(), resolution));
     }
     // This is sum(x^2)/spp. if Var(mean(x)) is need, it is sum(x^2)/(n(n-1)) - mean(x)^2/(n-1)
     image_buffers.emplace("variance", luisa::make_unique<ImageBuffer>(pipeline(), resolution));
@@ -1161,12 +1182,14 @@ void GradientPathTracingInstance::_render_one_camera(
             for (int i = 0; i < 4; i++) {
                 // right/bottom -> center, left/top -> left/top
                 auto current_pixel = pixel_id + (i < 2 ? make_uint2(0) : pixel_shifts[i]);
-                auto key = i % 2 == 0 ? "gradient_x" : "gradient_y";
+                string key = i % 2 == 0 ? "gradient_x" : "gradient_y";
                 auto sign = i < 2 ? 1.f : -1.f;
                 $if (all(current_pixel >= 0u && current_pixel < resolution)) {
                     // Multiplied by 2 because MIS is used here
                     auto L = pipeline().spectrum()->srgb(eval.swl, sign * 2.f * (eval.gradients[i] - eval.very_direct));
-                    image_buffers.at(key)->accumulate(current_pixel, shutter_weight * L, 1.f);
+                    image_buffers.at(key + "_single_frame")->accumulate(current_pixel, shutter_weight * L, 1.f);
+                    // image_buffers.at(key)->accumulate(current_pixel, shutter_weight * L, 1.f);
+                    // image_buffers.at(key + "_variance")->accumulate(current_pixel, shutter_weight * L * L);
                 };
             }
         }
@@ -1184,6 +1207,16 @@ void GradientPathTracingInstance::_render_one_camera(
         auto strength = max(max(max(abs_L.x, abs_L.y), abs_L.z), 0.f);
         auto clamp_L = L * (threshold / max(strength, threshold));
         image_buffers.at("variance")->accumulate(pixel_id, clamp_L * clamp_L);
+
+        // Gradient buffer accumulation
+        if (!node<GradientPathTracing>()->central_radiance()) {
+            for (int i = 0; i < 2; i++) {
+                string key = i == 0 ? "gradient_x" : "gradient_y";
+                auto L = image_buffers.at(key + "_single_frame")->read(pixel_id);
+                image_buffers.at(key)->accumulate(pixel_id, L);
+                image_buffers.at(key + "_variance")->accumulate(pixel_id, L * L);
+            }
+        }
     };
 
     Kernel2D finalize_var_kernel = [&]() noexcept {
@@ -1192,14 +1225,30 @@ void GradientPathTracingInstance::_render_one_camera(
         auto n = static_cast<float>(spp);
         auto mean_x = camera->film()->read(pixel_id).average;       // mean(x)   = 1/n * sum(x)
         auto mean_x2 = image_buffers.at("variance")->read(pixel_id);// mean(x^2) = 1/n * sum(x^2)
-        auto var = (mean_x2 - mean_x * mean_x) / (n - 1.f);         // var(x)    = 1/(n-1) * (sum(x^2) - n * mean(x)^2)
+        auto var = n * (mean_x2 - mean_x * mean_x) / (n - 1.f);         // var(x)    = 1/(n-1) * (sum(x^2) - n * mean(x)^2)
         image_buffers.at("variance")->write(pixel_id, max(var, 0.f));
+    };
+
+    Kernel2D finalize_gradient_var_kernel = [&]() noexcept {
+        set_block_size(16u, 16u, 1u);
+        auto pixel_id = dispatch_id().xy();
+        if (!node<GradientPathTracing>()->central_radiance()) {
+            for (int i = 0; i < 2; i++) {
+                string key = i == 0 ? "gradient_x" : "gradient_y";
+                auto mean_x = image_buffers.at(key)->read(pixel_id);
+                auto mean_x2 = image_buffers.at(key + "_variance")->read(pixel_id);
+                auto n = static_cast<float>(spp);
+                auto var = n * (mean_x2 - mean_x * mean_x) / (n - 1.f);
+                image_buffers.at(key + "_variance")->write(pixel_id, max(var, 0.f));
+            }
+        }
     };
 
     Clock clock_compile;
     auto render = pipeline().device().compile(render_kernel);
     auto accumulate = pipeline().device().compile(accumulate_kernel);
     auto finalize_var = pipeline().device().compile(finalize_var_kernel);
+    auto finalize_gradient_var = pipeline().device().compile(finalize_gradient_var_kernel);
     auto integrator_shader_compilation_time = clock_compile.toc();
     LUISA_INFO("Integrator shader compile in {} ms.", integrator_shader_compilation_time);
     auto shutter_samples = camera->node()->shutter_samples();
@@ -1216,6 +1265,10 @@ void GradientPathTracingInstance::_render_one_camera(
         pipeline().update(command_buffer, s.point.time);
         for (auto i = 0u; i < s.spp; i++) {
             current_frame_buffer.clear(command_buffer);
+            if (!node<GradientPathTracing>()->central_radiance()) {
+                image_buffers.at("gradient_x_single_frame")->clear(command_buffer);
+                image_buffers.at("gradient_y_single_frame")->clear(command_buffer);
+            }
             command_buffer << render(sample_id++, s.point.time, s.point.weight)
                                   .dispatch(resolution)
                            << accumulate().dispatch(resolution);
@@ -1232,8 +1285,11 @@ void GradientPathTracingInstance::_render_one_camera(
     auto parent_path = camera->node()->file().parent_path();
     auto filename = camera->node()->file().stem().string();
     auto ext = camera->node()->file().extension().string();
-    command_buffer << finalize_var().dispatch(resolution)
-                   << synchronize();
+    command_buffer << finalize_var().dispatch(resolution);
+    if (!node<GradientPathTracing>()->central_radiance()) {
+        command_buffer << finalize_gradient_var().dispatch(resolution);
+    }
+    command_buffer << synchronize();
     for (auto &[key, buffer] : image_buffers) {
         auto path = parent_path / fmt::format("{}_{}{}", filename, key, ext);
         command_buffer << buffer->save(command_buffer, path, key == "effective");
