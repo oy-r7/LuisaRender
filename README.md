@@ -41,6 +41,17 @@ Use command line to execute LuisaRender:
 <build-fodler>/bin/luisa-render-cli -b <backend> [-d <device-index>] <scene-file>
 ```
 
+Possible values of the parameter `backend` are listed below:
+|    Backend     |  Value   |
+| :------------: | :------: |
+|      CPU       |   cpu    |
+|      CUDA      |   cuda   |
+|    DirectX     |    dx    |
+|     Metal      |  metal   |
+| LLVM-based CPU | fallback |
+
+Note: You need to enable the corresponding compilation options for the chosen backend.
+
 To print the help message about the command line arguments, simply type
 ```bash
 <build-fodler>/bin/luisa-render-cli -h
