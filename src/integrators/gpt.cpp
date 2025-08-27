@@ -297,6 +297,11 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
     return get_vertex_type_by_roughness(min(roughness.x, roughness.y));
 }
 
+[[nodiscard]] auto pdf_division_hack(Var<float> pdf1, Var<float> pdf2) noexcept {
+    // Hack for dirac pdf
+    return ite(pdf1 > 1e4f & pdf2 > 1e4f, 1.f, pdf1 / pdf2);
+}
+
 [[nodiscard]] auto GradientPathTracingInstance::half_vector_shift(
     Float3 tangent_space_main_wi,
     Float3 tangent_space_main_wo,
@@ -810,7 +815,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                             }
                             $else {
                                 shifted.weight *= shifted_bsdf_value / shifted_bsdf_pdf;
-                                shifted.pdf_div_main_pdf *= shifted_bsdf_pdf / main_bsdf_pdf;
+                                shifted.pdf_div_main_pdf *= pdf_division_hack(shifted_bsdf_pdf, main_bsdf_pdf);
 
                                 // MIS between main and shifted
                                 auto new_denominator = main_lum_pdf + main_bsdf_pdf + previous_shifted_pdf_div_main_pdf * (shifted_bsdf_pdf + shifted_lum_pdf);
@@ -838,7 +843,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                             }
                             $else {
                                 shifted.weight *= shifted_bsdf_value / shifted_bsdf_pdf;
-                                shifted.pdf_div_main_pdf *= shifted_bsdf_pdf / main_bsdf_pdf;
+                                shifted.pdf_div_main_pdf *= pdf_division_hack(shifted_bsdf_pdf, main_bsdf_pdf);
 
                                 shifted.connection_status = (uint)RayConnection::RAY_CONNECTED;
 
@@ -893,7 +898,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                         $else {
 
                                             shifted.weight *= shifted_bsdf_value / shifted_bsdf_pdf;
-                                            shifted.pdf_div_main_pdf *= shift_result.jacobian * shifted_bsdf_pdf / main_bsdf_pdf;
+                                            shifted.pdf_div_main_pdf *= shift_result.jacobian * pdf_division_hack(shifted_bsdf_pdf, main_bsdf_pdf);
 
                                             shifted.connection_status = (uint)RayConnection::RAY_RECENTLY_CONNECTED;
 
@@ -932,8 +937,6 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                             }
                             $else {
                                 // Half-vector shift
-                                auto tangent_space_incoming_direction = shifted.it.shading().world_to_local(-shifted.ray->direction());
-                                auto tangent_space_outgoing_direction = def(make_float3(0.f));
                                 SampledSpectrum shifted_emitter_radiance{swl.dimension(), 0.f};
 
                                 // Deny shifts between Dirac and non-Dirac BSDFs. TODO
@@ -950,6 +953,8 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
 
                                 auto main_tangent_space_wo = previous_main_it.shading().world_to_local(main_bsdf_result.wo);
                                 auto main_tangent_space_wi = previous_main_it.shading().world_to_local(main_bsdf_result.sample.wi);
+                                auto tangent_space_incoming_direction = shifted.it.shading().world_to_local(-shifted.ray->direction());
+                                auto tangent_space_outgoing_direction = def(make_float3(0.f));
                                 auto shift_result = half_vector_shift(
                                     main_tangent_space_wo, main_tangent_space_wi,
                                     tangent_space_incoming_direction,
@@ -990,7 +995,7 @@ luisa::unique_ptr<Integrator::Instance> GradientPathTracing::build(
                                         shifted_bsdf_pdf = eval.pdf;
                                         shifted_bsdf_value = eval.f;
                                         shifted.weight *= eval.f / eval.pdf;
-                                        shifted.pdf_div_main_pdf *= eval.pdf / main_bsdf_pdf;
+                                        shifted.pdf_div_main_pdf *= pdf_division_hack(shifted_bsdf_pdf, main_bsdf_pdf);
                                     };
                                     // Strict normal TODO
                                 };
