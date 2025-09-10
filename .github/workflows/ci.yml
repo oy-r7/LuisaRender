@@ -7,7 +7,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
+        platform:
           - os: ubuntu-24.04
             arch: x86_64
             cuda-keyring: x86_64
@@ -23,8 +23,8 @@ jobs:
           - { name: clang, version: 17 }
           - { name: clang, version: 18 }
         config: [ Release, Debug ]
-    name: "${{ matrix.os }} / ${{ matrix.config }} / ${{ matrix.compiler.name }}-${{ matrix.compiler.version }}"
-    runs-on: ${{ matrix.os }}
+    name: "${{ matrix.platform.os }} / ${{ matrix.config }} / ${{ matrix.compiler.name }}-${{ matrix.compiler.version }}"
+    runs-on: ${{ matrix.platform.os }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -47,7 +47,7 @@ jobs:
           sudo apt-get -y install build-essential cmake ninja-build uuid-dev libxinerama-dev libxcursor-dev libxi-dev libvulkan-dev libxkbcommon-dev libxrandr-dev
       - name: "Install CUDA Keyring"
         run: |
-          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/${{ matrix.cuda-keyring }}/cuda-keyring_1.1-1_all.deb
+          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/${{ matrix.platform.cuda-keyring }}/cuda-keyring_1.1-1_all.deb
           sudo apt-get -y remove --purge -s '*cuda*' '*nvidia*'
           sudo dpkg -i cuda-keyring_1.1-1_all.deb
       - name: "Setup CUDA"
@@ -83,7 +83,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           path: "dist/bin"
-          name: LuisaRender-${{ matrix.os }}-${{ matrix.compiler.name }}-${{ matrix.compiler.version }}
+          name: LuisaRender-${{ matrix.platform.os }}-${{ matrix.compiler.name }}-${{ matrix.compiler.version }}
 
   build-macos:
     strategy:
@@ -100,7 +100,7 @@ jobs:
           submodules: recursive
       - name: "Install Dependencies"
         run: |
-          brew install cmake ninja llvm sccache glfw molten-vk
+          brew install ninja llvm sccache glfw molten-vk
       - name: "Configure and Build"
         run: |
           if [ "${{ matrix.compiler }}" = "homebrew-clang" ]; then
@@ -127,7 +127,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ 2019, 2025 ]
+        os: [ 2025 ]
         config: [ Release, Debug ]
         compiler: [ cl, clang, clang-cl ]
     name: "windows-${{ matrix.os }} / ${{ matrix.config }} / ${{ matrix.compiler }}"
