@@ -34,6 +34,9 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND
         CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 15.0)
     add_compile_options(-Wno-deprecated-non-prototype)
 endif ()
+if (MSVC AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    set(CMAKE_RC_COMPILER windres.exe)
+endif ()
 add_subdirectory(assimp)
 set_target_properties(assimp PROPERTIES
         UNITY_BUILD OFF
