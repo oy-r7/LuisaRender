@@ -64,7 +64,14 @@ public:
     protected:
         [[nodiscard]] virtual Float3 Li(const Camera::Instance *camera, Expr<uint> frame_index,
                                         Expr<uint2> pixel_id, Expr<float> time) const noexcept;
+        virtual void Li_sample(const Camera::Instance *camera, Expr<uint> frame_index,
+                                        Expr<uint2> pixel_id, Expr<float> time) ;
         virtual void _render_one_camera(CommandBuffer &command_buffer, Camera::Instance *camera) noexcept;
+        virtual void _sample_thin_camera(CommandBuffer &command_buffer, Camera::Instance *camera) noexcept;
+        virtual void show_value2();
+        virtual void postsampling(CommandBuffer &command_buffer);
+        virtual void set0 (CommandBuffer &command_buffer, uint2 resolution);
+
 
     public:
         Instance(Pipeline &pipeline,
