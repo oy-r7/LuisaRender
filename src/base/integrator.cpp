@@ -7,6 +7,7 @@
 #include <util/progress_bar.h>
 #include <base/integrator.h>
 #include <base/pipeline.h>
+#include <iostream>
 
 namespace luisa::render {
 
@@ -39,6 +40,10 @@ void ProgressiveIntegrator::Instance::render(Stream &stream) noexcept {
         auto pixel_count = resolution.x * resolution.y;
         camera->film()->prepare(command_buffer);
         {
+            //set0(command_buffer, resolution);
+            //_sample_thin_camera(command_buffer, camera);//add
+            //show_value2(); 
+            //no sample, make one camera
             _render_one_camera(command_buffer, camera);
             luisa::vector<float4> pixels(pixel_count);
             camera->film()->download(command_buffer, pixels.data());
@@ -88,11 +93,15 @@ void ProgressiveIntegrator::Instance::_render_one_camera(
     progress.update(0.);
     auto dispatch_count = 0u;
     auto sample_id = 0u;
+    
     for (auto s : shutter_samples) {
+        //std::cout << "out cycle "  << std::endl;
         pipeline().update(command_buffer, s.point.time);
         for (auto i = 0u; i < s.spp; i++) {
             command_buffer << render(sample_id++, s.point.time, s.point.weight)
                                   .dispatch(resolution);
+            //show_value2();
+            //std::cout << "Result: " << sample_id << std::endl;
             dispatch_count++;
             if (camera->film()->show(command_buffer)) { dispatch_count = 0u; }
             auto dispatches_per_commit = 4u;
@@ -110,9 +119,89 @@ void ProgressiveIntegrator::Instance::_render_one_camera(
     LUISA_INFO("Rendering finished in {} ms.", render_time);
 }
 
+//add
+/* void postsampling() {
+}*/
+
+
+void ProgressiveIntegrator::Instance::_sample_thin_camera(
+    CommandBuffer &command_buffer, Camera::Instance *camera) noexcept {
+   
+    auto spp = 1u;
+    auto resolution = camera->film()->node()->resolution();
+    auto image_file = camera->node()->file();
+
+    auto pixel_count = resolution.x * resolution.y;
+    sampler()->reset(command_buffer, resolution, pixel_count, spp);
+    command_buffer << compute::synchronize();
+
+   
+    using namespace luisa::compute;
+    LUISA_INFO("Sample started.");
+    Kernel2D render_kernel = [&](UInt frame_index, Float time, Float shutter_weight) noexcept {
+        set_block_size(16u, 16u, 1u);
+        auto pixel_id = dispatch_id().xy();
+        Li_sample(camera, frame_index, pixel_id, time);
+        //camera->film()->accumulate(pixel_id, shutter_weight * L);
+    };
+
+    
+    Clock clock_compile;
+    auto render = pipeline().device().compile(render_kernel);
+    auto integrator_shader_compilation_time = clock_compile.toc();
+     
+    auto shutter_samples = camera->node()->shutter_samples();
+    command_buffer << synchronize();
+
+   
+    Clock clock;
+    ProgressBar progress;
+    progress.update(0.);
+    auto dispatch_count = 0u;
+    auto sample_id = 0u;
+    for (auto s : shutter_samples) {
+        pipeline().update(command_buffer, s.point.time);
+        for (auto i = 0u; i < s.spp; i++) {
+            command_buffer << render(sample_id++, s.point.time, s.point.weight).dispatch(resolution);
+
+            
+        }
+    }
+    uint ken = 1;
+    
+    command_buffer << synchronize();
+    progress.done();
+    LUISA_INFO("Sample finished.");
+    postsampling(command_buffer);
+
+    auto render_time = clock.toc();
+    
+}
+
+
+
 Float3 ProgressiveIntegrator::Instance::Li(const Camera::Instance *camera, Expr<uint> frame_index,
                                            Expr<uint2> pixel_id, Expr<float> time) const noexcept {
     LUISA_ERROR_WITH_LOCATION("ProgressiveIntegrator::Li() is not implemented.");
+}
+
+//add
+void ProgressiveIntegrator::Instance::Li_sample(const Camera::Instance *camera, Expr<uint> frame_index,
+                                           Expr<uint2> pixel_id, Expr<float> time)  {
+    //LUISA_ERROR_WITH_LOCATION("ProgressiveIntegrator::Li() is not implemented.");
+}
+
+void ProgressiveIntegrator::Instance::show_value2() 
+{
+
+}
+
+void ProgressiveIntegrator::Instance::postsampling(CommandBuffer &command_buffer) {
+
+}
+
+void ProgressiveIntegrator::Instance::set0(CommandBuffer& command_buffer, uint2 resolution) {
+
 }
 
 ProgressiveIntegrator::ProgressiveIntegrator(Scene *scene, const SceneNodeDesc *desc) noexcept
