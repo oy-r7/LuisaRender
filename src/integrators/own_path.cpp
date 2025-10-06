@@ -851,6 +851,9 @@ private:
 
         auto v = pos - origin;
         auto distanceToPlane = dot(v, direction);
+        $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+            luisa::compute::device_log("raster = {}, {}, {}", distanceToPlane, aperture, sensorDistance);
+        };
         //Direction is inversed
         auto y = dot(v, vertical) / distanceToPlane * sensorDistance / (aperture * .5f);
         auto x = dot(v, horizontal) / distanceToPlane * sensorDistance / (aperture * .5f);
@@ -1042,9 +1045,9 @@ private:
             unsigned int componentCount = 0;
             componentCount = ConnectedComponents(hostLabels, SCREEN_SPACE_RECORD_RES, SCREEN_SPACE_RECORD_RES);
             //std::cout << "label: " << hostLabels[32896 + X] << " com:" << componentCount << std::endl;
-            std::string filename = "label'_" + std::to_string(i) + ".txt";
+            //std::string filename = "label'_" + std::to_string(i) + ".txt";
             //std::cout << filename << std::endl;
-            saveMatrixToFile(hostLabels, filename);
+            //saveMatrixToFile(hostLabels, filename);
              command_buffer
                 << labelBuffer.copy_from(hostLabels.data())
                 << clearAABBShader().dispatch(componentBoundBuffer.size())
@@ -1237,7 +1240,7 @@ private:
         auto lab = labelBuffer->read(coord1D);
 
         auto accp = records->read(coord1D);
-
+/*
         Var<float3> pos = make_float3(0.f);
         auto judge = countB->read(coord1D);
         $if (judge > 0) {
@@ -1247,13 +1250,13 @@ private:
             pos = g3dCenterf;
         };
 
-        /*
+        
         //pos = node<OwnkernelPathTracing>()->look_at();
         $if (con.y != 0) {
             pos = accp.position.xyz() / con.y;
         };
         
-        Float3 po = make_float3(0.f, 0.f, -5.f);*/
+        Float3 po = make_float3(0.f, 0.f, -5.f);
 
         $if (lab > 0) {
             Var<int> cho = lab - 1;
@@ -1267,8 +1270,16 @@ private:
             pos = g3dCenterf;
             
             
-        };
+        };*/
 
+        
+        auto resolution = make_float2(node<OwnkernelPathTracing>()->resolution());
+        Float resox = resolution.x;
+        Float resoy = resolution.y;
+        Float2 pixel_offset = .5f * resolution;
+        auto pix = make_float2(coord.x.cast<Float>(), coord.y.cast<Float>());
+        auto coord_focal = (pix - pixel_offset);
+        auto pos = node<OwnkernelPathTracing>()->position() + make_float3(coord_focal, 3.f);
         
         
 
@@ -1293,7 +1304,7 @@ private:
         const auto lensRadius = node<OwnkernelPathTracing>()->focal_length() * float(1e-3) / (2.f * node<OwnkernelPathTracing>()->aperture());
 
          $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
-             luisa::compute::device_log("pos = {}, {}, {}, judge = {}", pos.x, pos.y, pos.z, judge);
+             luisa::compute::device_log("pos = {}, {}, {}", rasterPos.x, rasterPos.y, focusDistance);
         };
 
 
@@ -1651,7 +1662,7 @@ private:
         auto energy = clamp(reduce_sum(sample) * 0.3333333f *  (*lensPdf), 0.f, 200.f);
         //auto rad = (sample.x + sample.y + sample.z) / 3.f;
 
-        
+        /*
         Var<float> gf = 100;
         auto object_to_sensor_ratio = (fd / sensorDistance);
         auto resolution = make_float2(node<OwnkernelPathTracing>()->resolution());
@@ -1688,7 +1699,7 @@ private:
                 };
             };
 
-        };
+        };*/
         
         
 
@@ -1757,7 +1768,7 @@ private:
                     atomicRef.position.w.fetch_add(width * energy);
                     
                     recordCB->atomic(0).fetch_add(1);
-                    Li = Li * energyWeight * 20.f ;
+                    Li = Li ;
                 };
             };
             /* Stream stream = _device.create_stream();
