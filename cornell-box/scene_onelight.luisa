@@ -1,0 +1,173 @@
+
+Surface mat_LeftWall : Matte {
+  Kd : Constant {
+    v { 0.6299999952316284, 0.06499999761581421, 0.05000000074505806 }
+  }
+}
+
+Surface mat_RightWall : Matte {
+  Kd : Constant {
+    v { 0.14000000059604645, 0.44999998807907104, 0.09099999815225601 }
+  }
+}
+
+Surface mat_Floor : Matte {
+  Kd : Constant {
+    v { 0.7250000238418579, 0.7099999785423279, 0.6800000071525574 }
+  }
+}
+
+Surface mat_Ceiling : Matte {
+  Kd : Constant {
+    v { 0.7250000238418579, 0.7099999785423279, 0.6800000071525574 }
+  }
+}
+
+Surface mat_BackWall : Matte {
+  Kd : Constant {
+    v { 0.7250000238418579, 0.7099999785423279, 0.6800000071525574 }
+  }
+}
+
+Surface mat_ShortBox : Matte {
+  Kd : Constant {
+    v { 0.7250000238418579, 0.7099999785423279, 0.6800000071525574 }
+  }
+}
+
+Surface mat_TallBox : Matte {
+  Kd : Constant {
+    v { 0.7250000238418579, 0.7099999785423279, 0.6800000071525574 }
+  }
+}
+
+
+Surface mat_Night : Matte {
+  Kd : Image {
+    file { "textures/night.png" }
+    semantic { "albedo" }
+  }
+}
+
+
+
+
+Surface mat_Light : Null {}
+
+Surface mat_Null : Null {}
+
+Shape shape_6 : Mesh {
+  file { "models/cube.obj" }
+  surface { @mat_TallBox }
+  transform : Matrix {
+    m {
+      0.2867755889892578, -4.293727595694463e-09, 0.09822908788919449, -0.335438996553421,
+      -4.3623313850105205e-09, 0.6000000238418579, 3.8565065807460996e-08, 0.6000000238418579,
+      -0.09979848563671112, -3.8565065807460996e-08, 0.282265841960907, -0.2914150059223175,
+      0.0, 0.0, 0.0, 1.0
+    }
+  }
+}
+
+
+Shape shape_7 : Mesh {
+  file { "models/cube.obj" }
+  
+  surface { @mat_Light }
+  light : Diffuse {
+    emission : Constant {
+      v { 17.0, 12.0, 4.0 }
+      semantic { "illuminant" }
+    }
+  }
+  transform : Matrix {
+    m {
+      0.5, 0, 0, 0,
+      0, 0.5, 0, 0,
+      0, 0, 0.5, -5,
+      0.0, 0.0, 0.0, 1.0
+    }
+  }
+}
+
+Shape shape_8 : Mesh {
+  file { "models/sphere.obj" }
+  surface { @mat_Light }
+  light : Diffuse {
+    emission : Constant {
+      v { 30.0, 30.0, 30.0 }
+      semantic { "illuminant" }
+    }
+  }
+  transform : Stack {
+    transforms {
+      SRT {
+        rotate { 0, 1, 0, 90 }
+        scale { 1, 2, 1 }
+      },
+      Matrix {
+        m {
+          0.6515898704528809, 0, 0, -2.8982300758361816,
+          0, 1, 0, 1.4050400257110596,
+          0, 0, 1.3031748533248901, -1.3926600217819214,
+          0, 0, 0, 1
+        }
+      }
+    }
+  }
+}
+
+
+Light point_light : PointLight {
+    intensity { 50.0 }
+    color { 1.0, 1.0, 1.0 }
+    transform : SRT {
+        translate { 0.0, 0.0, -5.0 }
+    }
+}
+
+
+Camera camera : thinlens {
+  
+  spp { 20 }
+  aperture { 0.02 }
+  focal_length { 20.0 }
+  look_at { 0.0, 0.0, -1.0 }
+  position { 0.0, 0.0, 0.0 }
+  resolution { 256,256 }
+
+  filter : Gaussian {
+    radius { 1 }
+  }
+  film : Color {
+    resolution { 256, 256 }
+  }
+  file { "render_onelight.exr" }
+  transform : View {
+    position { 0.0, 0.0, 0.0 }
+    front { 0.0, 0.0, -1.0 }
+    up { 0.0, 1.0, 0.0 }
+  }
+  
+  
+  
+}
+
+render {
+  cameras { @camera }
+  integrator : ownpath {
+  aperture { 0.02 }
+  focal_length { 20.0 }
+  look_at { 0.0, 0.0, -1.0 }
+  position { 0.0, 0.0, 0.0 }
+   resolution { 256,256 }
+    sampler : Independent {}
+  }
+ 
+  shapes {
+   
+    @shape_7
+  }
+  environment : Null {}
+}
+
