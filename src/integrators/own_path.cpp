@@ -13,8 +13,8 @@
 #include <memory>
 #include <optional>
 //#include "stb_image_write.h"
-constexpr auto X = 40;
-constexpr auto Y = 40;
+constexpr auto X = 10;
+constexpr auto Y = 10;
 
 #define LIS_EXPERIMENT
 
@@ -664,9 +664,13 @@ private:
         auto label = labelBuffer->read(coord1D);
         auto record = records->read(coord1D);
         auto count = countBuffer->read(coord1D);
+        
         $if (label > 0) {
             auto g3d = record.position / count.y;
             auto radius = record.position.w / count.y;
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                luisa::compute::device_log("gAABB = {}, {}", radius, g3d);
+            };
             UInt g3dId = label - 1;
             auto boundAtomic = componentBoundBuffer->atomic(g3dId);
             boundAtomic.packed_max[0].fetch_max(g3d[0] + radius);
@@ -691,7 +695,7 @@ private:
                         (bound.packed_max[0] - bound.packed_min[0]),
                         (bound.packed_max[1] - bound.packed_min[1]),
                         (bound.packed_max[2] - bound.packed_min[2]))) *
-                    0.5f;
+                    WIDTH_SCALE;
         //size *= 0.5f;
         $if ((0u == luisa::compute::dispatch_x())) {
            // luisa::compute::device_log("center = {}, {}, {}, size = {}", center.x, center.y, center.z, size);
@@ -860,9 +864,10 @@ private:
         };
         auto origin = node<OwnkernelPathTracing>()->position();
         auto direction = normalize(node<OwnkernelPathTracing>()->look_at());
-        auto vertical = make_float3(0.f, 1.f, 0.f);
-        auto horizontal = cross(direction, vertical);
+        auto vertical = normalize(make_float3(0.f, 1.f, 0.f));
+        auto horizontal = normalize(cross(direction, vertical));
        
+
 
         auto v = pos - origin;
         auto distanceToPlane = abs(dot(v, direction));
@@ -1123,8 +1128,8 @@ private:
 
         //Float3 origin = node<OwnkernelPathTracing>()->position();
         auto direction = normalize(node<OwnkernelPathTracing>()->look_at());
-        auto vertical = make_float3(0.f, 1.f, 0.f);
-        auto horizontal = cross(direction, vertical);
+        auto vertical = normalize(make_float3(0.f, 1.f, 0.f));
+        auto horizontal = normalize(cross(direction, vertical));
         auto aperture = node<OwnkernelPathTracing>()->aperture();
         
         std::optional<luisa::compute::Int> selectedComponent{};
@@ -1224,14 +1229,14 @@ private:
         //coord_focal.y = .036f * coord_focal.y * 2.f / resolution.y;
         auto inverse_projected = 1.f / projected_pixel_size;
 
-        auto pos = node<OwnkernelPathTracing>()->position() + make_float3(coord_focal.x, -coord_focal.y, sensorDistance   ) ;
+        auto pos = node<OwnkernelPathTracing>()->position() + (coord_focal.x * horizontal) + (-coord_focal.y * vertical) + (-sensorDistance * direction);
         
         
 
         //weight
-        auto rasterPos = GetRasterPosition(pos, 0, size, scale);
-        rasterPos = rasterPos - .5f;
-        rasterPos *= aperture;
+        //auto rasterPos = GetRasterPosition(pos, 0, size, scale);
+        //rasterPos = rasterPos - .5f;
+        //rasterPos *= aperture;
         //auto sensorDistance = node<OwnkernelPathTracing>()->focal_length() * float(1e-3);
         //Float sensorDistance = 1.f / (1.f / node<OwnkernelPathTracing>()->focal_length() * float(1e-3) - 1 / node<OwnkernelPathTracing>()->focus_distance());
         //sensorDistance *= scale;
@@ -1244,41 +1249,49 @@ private:
         //const auto focusDir = normalize(direction * sensorDistance + rasterPos.x * horizontal  + rasterPos.y * vertical  );
         //
         //const auto focusPoint = origin + focusDir * focusDistance * make_float3( focusDistance / node<OwnkernelPathTracing>()->focus_distance(),  focusDistance / node<OwnkernelPathTracing>()->focus_distance(), 1.f);
-        const auto focusPoint = node<OwnkernelPathTracing>()->position() + make_float3(coord_focal.x, -coord_focal.y, -fd);
-        const auto focusDir = normalize(make_float3(coord_focal.x, -coord_focal.y, -fd));
+        const auto focusPoint = node<OwnkernelPathTracing>()->position() + (coord_focal.x * horizontal) +  (-coord_focal.y * vertical) + (fd * direction);
+        const auto focusDir = normalize((coord_focal.x * horizontal) + (-coord_focal.y * vertical) + (fd * direction));
         const auto focusDistance = node<OwnkernelPathTracing>()->focus_distance() / dot(focusDir, direction);
          $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
-             luisa::compute::device_log("pos = {}, {}", focusDir, rasterPos);
-             luisa::compute::device_log("pos2 = {}, {}", lensRadius, pos);
+             luisa::compute::device_log("pos = {}", focusDir);
+             luisa::compute::device_log("pos2 = {}, {}", lensRadius, focusPoint);
+             luisa::compute::device_log("pro = {},{},{}", camera_pixel, pixel_offset, projected_pixel_size);
+             luisa::compute::device_log("base = {},{},{}", direction, vertical, horizontal);
         };
 
 
-
+        Float cosThetaRef = 0.f;
         auto g3dCount = g3dCountBuffer->read(0);
         G3DMixture<COMPONENT_COUNT> g3ds{};
         ArrayVar<int, COMPONENT_COUNT> g3dIds{};
         Var<uint> usedG3ds = 0u;
-        auto cosThetaRef = abs(dot(focusDir,normalize(focusPoint - (origin + vertical * lensRadius ))));
+        $if (focusPoint.y < 0.f) {
+            
+            cosThetaRef = abs(dot(focusDir, normalize(focusPoint - (origin - vertical * lensRadius))));
+        }
+        $else {
+            cosThetaRef = abs(dot(focusDir,normalize(focusPoint - (origin + vertical * lensRadius ))));
+        };
+        
         auto theta0 = acos(cosThetaRef);
-        g3dCount = 1u;
+        //g3dCount = 0u;
         
         auto g3d = g3dBuffer->read(0u);
         auto g3dC = g3d.xyz();
         auto g3dR = g3d.w;
 
-        g3ds.gaussian[0u]->mu = make_float3(0.f, 0.f, -5.f);
-        g3ds.gaussian[0u]->sigma = 0.2f;
-        g3ds.weights[0u] = 1.f;
+        //g3ds.gaussian[0u]->mu = make_float3(0.f, 0.f, -5.f);
+        //g3ds.gaussian[0u]->sigma = 0.2f;
+        //g3ds.weights[0u] = 1.f;
         
         $for (i, g3dCount) {
             /* $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
                 luisa::compute::device_log("g3Dc = {}", g3dCount);
             };*/
             auto g3d = g3dBuffer->read(i);
-            //auto g3dCenter = g3d.xyz();
-            //auto g3dRadius = g3d.w;
-            auto g3dCenter = make_float3(0.f, 0.f, -5.f);
-            auto g3dRadius = 0.4f;
+            auto g3dCenter = g3d.xyz();
+            auto g3dRadius = g3d.w ;
+            
 
 
             auto pointTo = g3dCenter - focusPoint;
@@ -1292,7 +1305,11 @@ private:
             auto cosPsi = ite(sinPsi >= 1.f, 0.f, sqrt(1.f - sqr(sinPsi)));
             auto psi = acos(cosPsi);
             auto thetaMin = theta - psi;
-
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                luisa::compute::device_log("hanbetsu = {},{},{}", d, thetaMin, theta0);
+                luisa::compute::device_log("g3d = {}, {}", g3dCenter, g3dRadius);
+                //luisa::compute::device_log("camera_weight = {}", camera_weight);
+            };
             $if (max(0.f, thetaMin) <= theta0) {
                 Var<uint> g = usedG3ds;
                 usedG3ds += 1;
@@ -1302,12 +1319,12 @@ private:
                 $if (g < COMPONENT_COUNT) {
                     g3dIds[g] = i;
                     g3ds.gaussian[g]->mu = g3dCenter;
-                    g3ds.gaussian[g]->sigma = g3dRadius * WIDTH_SCALE;
+                    g3ds.gaussian[g]->sigma = g3dRadius;
                 };
             };
         };
         usedG3ds = min(COMPONENT_COUNT, usedG3ds);
-        usedG3ds = 1.f;
+        usedG3ds = 0.f;
         Float pdf = 0.f;
         const Float uniformPdf =  camera_weight * 1.f / (lensRadius * lensRadius * constants::pi);
         Float powerh = 0.f;
@@ -1341,7 +1358,7 @@ private:
             //if fixed
              $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
                 //luisa::compute::device_log("camera_dir = {}, {}, {}", camera_ray->direction().x, camera_ray->direction().y, camera_ray->direction().z);
-                luisa::compute::device_log("camera_origin = {}, {}, {}", camera_ray->origin().x, camera_ray->origin().y, camera_ray->origin().z);
+                luisa::compute::device_log("com = {}, {}", usedG3ds, g3dCount);
                 //luisa::compute::device_log("camera_weight = {}", camera_weight);
             };
 
@@ -1368,12 +1385,14 @@ private:
                 
             };
 
-           
+           Int loop = 0.f;
             //validpdf->atomic(coord1D).y.fetch_add(1.f);
             $while (true) {
                 //validpdf->atomic(coord1D).x.fetch_add(1.f);
                 Bool sampleG3d = sampler()->generate_1d() < selectionProbability;
                 
+                
+
                 $if (sampleG3d) { 
                     Float3 sampledDir;
                     Float pdf_g3d = 1.f;
@@ -1417,7 +1436,7 @@ private:
                     $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
                         //luisa::compute::device_log("offset = {}, {}, {}", offsetVector.x, offsetVector.y, offsetVector.z);
                         luisa::compute::device_log("origin = {}", origin);
-                        luisa::compute::device_log("pd = {}", *selectedComponent);
+                        luisa::compute::device_log("pd = {}, {}", pointDistance, lensRadius);
                         
 
                     };
@@ -1468,6 +1487,7 @@ private:
                         weightacc += uniformPdf / pdf;
                     };
                     tryTimes += 1.f; 
+                    
                 }
                 $else {
                     //LUISA_INFO("coming.");
@@ -1760,7 +1780,7 @@ private:
                 auto pointToBounce = normalize(g_first->p() - camera_ray->origin());
                 auto forward = node<OwnkernelPathTracing>()->look_at() - node<OwnkernelPathTracing>()->position() / length(node<OwnkernelPathTracing>()->look_at() - node<OwnkernelPathTracing>()->position());
                 auto cosTheta0 = dot(forward, pointToBounce);
-                auto width = ((node<OwnkernelPathTracing>()->aperture() / node<OwnkernelPathTracing>()->focal_length() * float(1e-3)) * d * cosTheta0) / float(SCREEN_SPACE_RECORD_RES);
+                auto width = ((node<OwnkernelPathTracing>()->aperture() / (node<OwnkernelPathTracing>()->focal_length() * float(1e-3))) * d * cosTheta0) / float(SCREEN_SPACE_RECORD_RES);
 
                 $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
                 //luisa::compute::device_log("screenRadius = {}, posS = {}, {}", screenSpaceRadius, posScreen.x, posScreen.y);
@@ -1775,9 +1795,9 @@ private:
                     countBuffer->atomic(recordId).y.fetch_add(energy);
                     Float3 position = g_first->p();
                     $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
-                        //luisa::compute::device_log("pos.x = {}, pos.y = {}, pos.z = {}", position.x, position.y, position.z);
+                        luisa::compute::device_log("atomic = {}, {}, {}", d, width, position);
                     };
-                    position *= energy;
+                    position *= energy ;
                     auto atomicRef = records->atomic(recordId);
                     //atomicRef.accumulation.x.fetch_add(screenSpaceRadius * energyWeight);
                     atomicRef.accumulation.x.fetch_add(screenSpaceRadius * energyWeight);
