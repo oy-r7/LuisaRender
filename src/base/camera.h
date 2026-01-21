@@ -39,6 +39,8 @@ public:
         Float weight;
     };
 
+    
+
     class Instance {
 
     private:
@@ -53,6 +55,16 @@ public:
         _generate_ray_in_camera_space(Expr<float2> pixel,
                                       Expr<float2> u_lens,
                                       Expr<float> time) const noexcept = 0;
+
+        [[nodiscard]] virtual Bool _get_camera_param(Float &aper, Float &fl, Float &fd, Float &sd) const noexcept { return false; };
+        [[nodiscard]] virtual std::pair<Var<Ray>, Float> _get_ray_Manifold(Expr<float2> pixel, Float3 emit, Float sign) const noexcept {
+            Float3 base = make_float3(0.f);
+            Var<Ray> ray = make_ray(base, base);
+            Float bol = 0.f;
+            return std::make_pair(std::move(ray), std::move(bol));
+            
+        };
+
 
     public:
         Instance(Pipeline &pipeline,
@@ -76,6 +88,9 @@ public:
         [[nodiscard]] SampleDifferential generate_ray_differential(Expr<uint2> pixel_coord, Expr<float> time,
                                                                    Expr<float2> u_filter, Expr<float2> u_lens) const noexcept;
         [[nodiscard]] Float4x4 camera_to_world() const noexcept;
+        [[nodiscard]] Bool get_camera_param(Float &aper, Float &fl, Float &fd, Float &sd) const;
+        [[nodiscard]] Sample get_ray_Manifold(Expr<uint2> pixel_coord, Expr<float2> u_filter, const Float3 emit, const Float sign) const noexcept;
+
     };
 
     struct ShutterPoint {
@@ -155,6 +170,9 @@ public:
             ray->set_t_max(t.y);
             return std::make_pair(std::move(ray), std::move(weight));
         }
+        
+
+
     };
     [[nodiscard]] auto clip_plane() const noexcept { return _clip_plane; }
     [[nodiscard]] luisa::unique_ptr<Camera::Instance> build(

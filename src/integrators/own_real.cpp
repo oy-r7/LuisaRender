@@ -19,7 +19,7 @@
 //constexpr auto X = 248;
 //constexpr auto Y = -453;
 
-constexpr auto X = 30;
+constexpr auto X = 0;
 constexpr auto Y = 0;
 constexpr auto upright = 61176;
 constexpr auto midtower = 384758;
@@ -999,6 +999,7 @@ private:
 
             countBuffer->write(coordID, zero2);
             records->write(coordID, zeroD);
+            recordCB->write(0, 0);
 
             $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
                 luisa::compute::device_log("zero = {}, {}, {}", countBuffer->read(coordID), records->read(coordID).accumulation, records->read(coordID).position);
@@ -1310,7 +1311,34 @@ private:
         sampler()->start(pixel_id, frame_index);
         auto u_filter = sampler()->generate_pixel_2d();
         auto u_lens = camera->node()->requires_lens_sampling() ? sampler()->generate_2d() : make_float2(.5f);
-        auto [camera_ray, camera_pixel, camera_weight] = camera->generate_ray(pixel_id, time, u_filter, u_lens);
+
+        Float3 emit = make_float3(0.f);
+
+        Var<Ray> camera_ray;
+        Float2 camera_pixel;
+        Float camera_weight;
+
+        auto j = recordCB->read(0);
+        $if(j == 0) {
+            auto [me_ray, me_pixel, me_weight] = camera->get_ray_Manifold(pixel_id, u_filter, emit, 0.f);
+            auto [cam_ray, cam_pixel, cam_weight] = camera->generate_ray(pixel_id, time, u_filter, u_lens);
+            camera_ray = cam_ray;
+            camera_pixel = cam_pixel;
+            camera_weight = cam_weight;
+
+        }
+        $else {
+            Float3 emit = make_float3(0.f, 0.f, -5.f);
+            auto [_, __, ___] = camera->get_ray_Manifold(pixel_id, u_filter, emit, 1.f);
+            auto [manifold_ray, manifold_pixel, manifold_weight] = camera->generate_ray(pixel_id, time, u_filter, u_lens);
+            camera_ray = manifold_ray;
+            camera_pixel = manifold_pixel;
+            camera_weight = manifold_weight;
+        };
+       
+
+        
+        
         Bool positionrec = false;
         
          $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
@@ -2182,6 +2210,20 @@ private:
             luisa::compute::device_log("debug = {}, {}, {}", coord1D_debug, debug_pdf->read(coord1D_debug), g3ds_debug.gaussian[0].mu);
             //luisa::compute::device_log("number = {}, {}", countB->read(coord1D), energy);
         };
+
+        //test ME
+        emit = make_float3(0.f, 0.f, -5.f);
+        
+        //auto [me_ray, me_pixel, me_weight] = camera->get_ray_Manifold(pixel_id, u_filter, emit);
+        $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+            //luisa::compute::device_log("test_ME = {}", me_weight);
+            //luisa::compute::device_log("test_ME_ray = {},{}", me_ray->origin(), me_ray->direction());
+            //luisa::compute::device_log("number = {}, {}", countB->read(coord1D), energy);
+            recordCB->atomic(0).fetch_add(1);
+        };
+
+
+
         /* Float valuex = first->p().x;
         Float valuey = first->p().y;
         Float valuez = first->p().z;*/
@@ -2224,7 +2266,7 @@ private:
         Float fl;
         Float fd;
         Float sensorDistance;
-        Bool get_c_param = camera->get_camera_param(aperture, fl, fd, sensorDistance);
+       // Bool get_c_param = camera->get_camera_param(aperture, fl, fd, sensorDistance);
 
 
         //std::vector<int> hostLabels;
@@ -2577,9 +2619,15 @@ private:
             camera->film()->accumulate(pixel_id, shutter_weight * L.xyz(), L.w);
         };
 
+          LUISA_INFO("K1");
+
         Clock clock_compile;
         auto render = pipeline().device().compile(render_kernel);
+        LUISA_INFO("K2");
+
         auto render2 = pipeline().device().compile(render_kernel2);
+
+        LUISA_INFO("K3");
         auto integrator_shader_compilation_time = clock_compile.toc();
         LUISA_INFO("Integrator shader compile in {} ms.", integrator_shader_compilation_time);
         auto shutter_samples = camera->node()->shutter_samples();

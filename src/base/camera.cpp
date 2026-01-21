@@ -264,4 +264,15 @@ Float4x4 Camera::Instance::camera_to_world() const noexcept {
     return pipeline().transform(node()->transform());
 }
 
+Bool Camera::Instance::get_camera_param(Float &aper, Float &fl, Float &fd, Float &sd) const {
+    return _get_camera_param( aper, fl, fd, sd);
+}
+
+Camera::Sample Camera::Instance::get_ray_Manifold(Expr<uint2> pixel_coord, Expr<float2> u_filter, const Float3 emit,const Float sign) const noexcept{
+    auto [filter_offset, filter_weight] = filter()->sample(u_filter);
+    auto pixel = make_float2(pixel_coord) + 0.5f + filter_offset;
+    auto[ret_ray, ret_weight] =  _get_ray_Manifold(pixel, emit, sign);
+    return {std::move(ret_ray), pixel, ret_weight};
+}
+
 }// namespace luisa::render

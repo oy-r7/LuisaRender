@@ -8,10 +8,11 @@
 
 //#define LIS_EXPERIMENT
 
-constexpr auto X = 30;
+constexpr auto X = 0;
 constexpr auto Y = 0;
 constexpr auto CHAIN = 20;
 constexpr unsigned RESOLUTION = 256;
+constexpr unsigned MAX_I = 32;
 constexpr float solver_threshold = 1e-4f;
 constexpr float step_scale = 1.f;
 
@@ -72,6 +73,14 @@ struct ChainVerts {
 
 LUISA_STRUCT(ChainVerts,
              point, n, index, center, u, v, dp_du, dp_dv, s, t, ds_du, ds_dv, dt_du, dt_dv, C, dC_dx_prev, dC_dx_cur, dC_dx_next, tmp, inv_lambda, dx) {};
+
+struct ME_element {
+    luisa::compute::float3 emit;
+    float sign;
+};
+
+LUISA_STRUCT(ME_element,
+             emit, sign) {};
 
 namespace luisa::render {
 
@@ -150,7 +159,7 @@ private:
     luisa::compute::Buffer<float> refraction = _device.create_buffer<float>(CHAIN);
     luisa::compute::Buffer<float> radius = _device.create_buffer<float>(CHAIN);
     luisa::compute::Buffer<ChainVerts[CHAIN]> vertex = _device.create_buffer<ChainVerts[CHAIN]>(RESOLUTION * RESOLUTION);
-    
+    luisa::compute::Buffer<ME_element> element = _device.create_buffer<ME_element>(RESOLUTION * RESOLUTION);
 
 public:
     explicit RealLensCameraInstance(
@@ -210,6 +219,19 @@ public:
                        << refraction.copy_from(ir.data())
                        << radius.copy_from(ad.data())
                        << commit();
+    }
+
+
+    void Clear_path(Var<ChainVerts[CHAIN]> path) const {
+        $for (i, CHAIN) {
+            path[i].point = make_float3(0.f);
+            path[i].n = make_float3(0.f);
+            path[i].center = make_float3(0.f);
+            path[i].index = 0.f;
+            path[i].u = 0.f;
+            path[i].v = 0.f;
+            path[i].dx = make_float2(0.f);
+        };
     }
 
     //get front Z
@@ -1579,7 +1601,7 @@ public:
     //frame‚ÌŽŸ‚ðŽÀ‘•
 
 
-    Bool compute_der_halfvector(float3 start, float3 emit, Var<ChainVerts[20]> &path) const {
+    Bool compute_der_halfvector(Float3 start, Float3 emit, Var<ChainVerts[20]> &path) const {
         Bool compute = true;
         Int size = 0;
         $for (i, CHAIN) {
@@ -1802,7 +1824,7 @@ public:
         return compute;
     }
 
-    Bool reproject(const float3 start, const float3 emit, ArrayFloat3<20> proposed_path) const {
+    Bool reproject(const Float3 start, const Float3 emit, ArrayFloat3<20> proposed_path) const {
         
         Float3 first_point = proposed_path[0];
         Float3 direction_to_first = first_point - start;
@@ -1824,16 +1846,16 @@ public:
     }
 
 
-    Bool newton_solver(const float3 start, const float3 emit, Var<ChainVerts[CHAIN]>& path) const {
+    Bool newton_solver(const Float3 start, const Float3 emit, Var<ChainVerts[CHAIN]>& path) const {
         Bool newton = true;
 
         Bool success = false;
-        Int iterations = 0;
+        UInt iterations = 0u;
         Float beta = 1.f;
-        Int max_iteration = 32;
+        
         ArrayFloat3<20> proposed_path;
-
-
+/*
+        
         Int size = 0;
         $for (i, CHAIN) {
             $if (path[i].index == 1) {
@@ -1845,7 +1867,7 @@ public:
 
         Bool use_half_vector = true;
         Bool needs_step_update = true;
-        $while (iterations < max_iteration) {
+        $while (iterations < MAX_I) {
             Bool step_success = true;
             $if (needs_step_update) {
                 $if (use_half_vector) {
@@ -1976,7 +1998,7 @@ public:
                     newton = false;
                 };
             };
-        };
+        }; */
         
 
         return newton;
@@ -2006,6 +2028,9 @@ public:
         auto coord1D = coord.y * RESOLUTION + coord.x;
 
         auto path = vertex->read(coord1D);
+        auto elem = element->read(coord1D);
+
+        Clear_path(path);
 
         auto data = _device_data->read(0u);
         Float SumZ = LensFrontZ(lc);
@@ -2068,12 +2093,36 @@ public:
         //real system
         
 
+        Bool trace;
+        $if (elem.sign == 0.f) {
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                luisa::compute::device_log("LensTrace");
+            };
+
+            trace = TraceLences(first_ray, &ray, path);
+            $if (!trace) {
+                weight = 0.f;
+            };
+        }
+        $elif (elem.sign == 1.f) {
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                luisa::compute::device_log("Manifold Exploration");
+            };
+            Float3 start = coordScene;
+            Float3 emit = elem.emit;
+            //trace = newton_solver(start, emit, path);
+            $if (!trace) {
+                weight = 0.f;
+            };
+        }
+        $else {
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                luisa::compute::device_log("Error");
+            };
+        };
         //6.4.2
         /**/
-        Bool trace = TraceLences(first_ray, &ray, path);
-        $if (!trace) {
-            weight = 0.f;
-        };
+       
         
         #ifdef LIS_EXPERIMENT
         $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
@@ -2118,22 +2167,32 @@ public:
         };
         
         $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
-            luisa::compute::device_log("test_sd = {}", sd);
+            //luisa::compute::device_log("test_sd = {}", sd);
         };
 
         Float cosTheta = normalize(first_ray->direction()).z;
         Float cos4Theta = (cosTheta * cosTheta) * (cosTheta * cosTheta);
         //weight = weight * cos4Theta;
-        float3 start = make_float3(0.f);
-        float3 emit = make_float3(0.f, 0.f, -5.f);
 
-        Bool ME = compute_der_halfvector(start, emit, path);
+
+        Float3 start = make_float3(0.f);
+        Float3 emit = make_float3(0.f, 0.f, -5.f);
+        Bool NS = newton_solver(start, emit, path);
+        //test_ME
+        
+        
+
+      // Bool ME = compute_der_halfvector(start, emit, path);
         $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
-            luisa::compute::device_log("test_ME = {}", ME);
-            luisa::compute::device_log("test_ME = {}", path[0].dx);
+            luisa::compute::device_log("test_ME = {}", NS);
+            luisa::compute::device_log("test_ME = {}", path[0].point);
         };
 
-        Bool NS = newton_solver(start, emit, path);
+        
+/**/
+
+
+
         return std::make_pair(std::move(ray), weight);
     }
 
@@ -2145,6 +2204,62 @@ public:
         //fd = focusdistance();
         return get_p;
     }
+
+    [[nodiscard]] std::pair<Var<Ray>, Float> _get_ray_Manifold(Expr<float2> pixel, Float3 emit, Float sign) const noexcept override {
+        Float get_manifold_weight = 1.f;
+
+        auto coord = dispatch_id().xy();
+        auto coord1D = coord.y * RESOLUTION + coord.x;
+
+        //Var<ChainVerts[CHAIN]> path = vertex->read(coord1D);
+
+        auto get = element->read(coord1D);
+        get.emit = emit;
+        get.sign = sign;
+        element->write(coord1D, get);
+
+
+        auto data = _device_data->read(0u);
+        Float2 resolution = data.resolution;
+        auto sceneX = .024f;
+        auto sceneY = .024f;
+        Float coordX = (pixel.x - data.pixel_offset.x) * sceneX / resolution.x;
+        Float coordY = (pixel.y - data.pixel_offset.y) * sceneY / resolution.y;
+        Float3 coordScene = make_float3(coordX, coordY, 0.f);
+
+        Var<Ray> ret_ray = make_ray(make_float3(0.f), make_float3(0.f));
+
+
+
+;/*
+        Int size = 0;
+        $for (i, CHAIN) {
+            $if (path[i].index == 1) {
+                size = i + 1;
+                $break;
+            };
+        };
+        
+         
+        $if(size != 0) {
+            $if (newton_solver(coordScene, coordScene, path)) {
+                Float3 propose_origin = path[size - 1].point;
+                Float3 propose_direction = emit - path[size - 1].point;
+
+                //ret_ray = make_ray(propose_origin, propose_direction);
+            }
+            $else {
+                get_manifold_weight = 0.f;
+            };
+        }
+        $else {
+            get_manifold_weight = 0.f;
+        };*/
+        
+        return std::make_pair(std::move(ret_ray), get_manifold_weight);
+
+    }
+        
 
 };
 
