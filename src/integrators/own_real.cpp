@@ -19,8 +19,8 @@
 //constexpr auto X = 248;
 //constexpr auto Y = -453;
 
-constexpr auto X = 61;
-constexpr auto Y = -110;
+constexpr auto X = 30;
+constexpr auto Y = 0;
 constexpr auto upright = 61176;
 constexpr auto midtower = 384758;
 constexpr auto downright = 835467;
@@ -477,30 +477,26 @@ constexpr uint2 TARGET_PIXEL = make_uint2(289u, 285u);
 class OwnkernelPathTracing final : public ProgressiveIntegrator {
 
 private:
-    
+
 
 private:
     uint _max_depth;
     uint _rr_depth;
     float _rr_threshold;
-    float _aperture;
-    float _focal_length;
-    float _focus_distance;
     float3 _position;
     float3 _look_at;
     float3 _up;
     uint2 _resolution{};
-    vector<float> _curvanature;
-    vector<float> _thick;
-    vector<float> _refra_index;
-    vector<float> _aperture_diameter;
-    int _lens_count;
-   
-   
+    //vector<float> _curvanature;
+    //vector<float> _thick;
+    //vector<float> _refra_index;
+    //vector<float> _aperture_diameter;
+    //int _lens_count;
+
+
 
 
 public:
-
 
     OwnkernelPathTracing(Scene *scene, const SceneNodeDesc *desc) noexcept
         : ProgressiveIntegrator{scene, desc},
@@ -511,32 +507,20 @@ public:
           _max_depth{std::max(desc->property_uint_or_default("depth", 10u), 1u)},
           _rr_depth{std::max(desc->property_uint_or_default("rr_depth", 0u), 0u)},
           _rr_threshold{std::max(desc->property_float_or_default("rr_threshold", 0.95f), 0.05f)},
-          _aperture{desc->property_float_or_default("aperture", 2.f)},
-          _focal_length{desc->property_float_or_default("focal_length", 35.f)},
           _position{desc->property_float3_or_default("position", make_float3(0.f, 0.f, 1.f))},
-          _look_at{ desc->property_float3_or_default("look_at", make_float3(0.f,0.f,1.f))},
-          _up{desc->property_float3_or_default("up", make_float3(0.f, 1.f, 0.f))},
-          _curvanature{desc->property_float_list("curvanature")},
-          _thick{desc->property_float_list("thick")},
-          _refra_index{desc->property_float_list("index_refraction")},
-          _aperture_diameter{desc->property_float_list("aperture_diameter")},
-          _lens_count{desc->property_int("lens_count")},
-          _focus_distance{desc->property_float_or_default(
-              "focus_distance", lazy_construct([desc] {
-                  auto target = desc->property_float3("look_at");
-                  auto position = desc->property_float3("position");
-                  return length(target - position);
-              }))} {
-        _focus_distance = std::max(std::abs(_focus_distance), 1e-4f);
-        
+          _look_at{desc->property_float3_or_default("look_at", make_float3(0.f, 0.f, 1.f))},
+          _up{desc->property_float3_or_default("up", make_float3(0.f, 1.f, 0.f))} {
+    
+    //_curvanature{desc->property_float_list("curvanature")},
+    //_thick{desc->property_float_list("thick")},
+    //_refra_index{desc->property_float_list("index_refraction")},
+    //_aperture_diameter{desc->property_float_list("aperture_diameter")},
+    //_lens_count{desc->property_int("lens_count")},
 
     }
     [[nodiscard]] auto max_depth() const noexcept { return _max_depth; }
     [[nodiscard]] auto rr_depth() const noexcept { return _rr_depth; }
     [[nodiscard]] auto rr_threshold() const noexcept { return _rr_threshold; }
-    [[nodiscard]] auto aperture() const noexcept { return _aperture; }
-    [[nodiscard]] auto focal_length() const noexcept { return _focal_length; }
-    [[nodiscard]] auto focus_distance() const noexcept { return _focus_distance; }
     [[nodiscard]] auto look_at() const noexcept { return _look_at; }
     [[nodiscard]] auto position() const noexcept { return _position; }
     [[nodiscard]] auto up() const noexcept { return _up; }
@@ -582,7 +566,7 @@ private:
     //mutable luisa::compute::Buffer<luisa::float2> validpdf = _device.create_buffer<float2>(SCREEN_SPACE_RECORD_RES * SCREEN_SPACE_RECORD_RES);
     mutable luisa::compute::Buffer<int> recordCB = _device.create_buffer<int>(1);
 
-    luisa::compute::Buffer<float> curvanature = _device.create_buffer<float>(20);
+    //luisa::compute::Buffer<float> curvanature = _device.create_buffer<float>(20);
     //luisa::compute::Buffer<Float> thick = _device.create_buffer<Float>(20);
     //luisa::compute::Buffer<Float> index_of_refraction = _device.create_buffer<Float>(20);
     //luisa::compute::Buffer<Float> diameter = _device.create_buffer<Float>(20);
@@ -727,21 +711,24 @@ private:
 
     
 
-    Float2 GetRasterPosition(/* const SceneNodeDesc *desc,*/ Float3 pos, UInt frame, UInt2 size, Float scale) const {
+    Float2 GetRasterPosition(/* const SceneNodeDesc *desc,*/ Float3 pos, UInt2 size, const Camera::Instance *camera) const {
 
+
+        Float aperture;
+        Float fl;
+        Float fd;
+        Float sensorDistance;
+        Bool get_c_param = camera->get_camera_param(aperture, fl, fd, sensorDistance);
         Float2 rasterPos;
-        Float focalLength = node<OwnkernelPathTracing>()->focal_length() * float(1e-3);
-        Float aperture = node<OwnkernelPathTracing>()->aperture();
-        auto focalLengthScale = 1.f / focalLength;
-        focalLength = 1.f;
+        auto focalLengthScale = 1.f / fl;
+        fl = 1.f;
         aperture *= focalLengthScale;
         //aperture /= scale;
         //auto sensorDistance = focalLength;
         //Float sensorDistance = 1.f / (1.f / node<OwnkernelPathTracing>()->focal_length() * float(1e-3) - 1 / node<OwnkernelPathTracing>()->focus_distance());
         //sensorDistance *= scale;
-        auto fd = node<OwnkernelPathTracing>()->focus_distance();
-        auto fl = node<OwnkernelPathTracing>()->focal_length() * float(1e-3);
-        Float sensorDistance = 1.f / (1.f / fl - 1.f / fd);
+        
+        
 
         auto targetRatio = Float(size.x) / Float(size.y);
         auto currentRatio = aperture / aperture;
@@ -772,34 +759,43 @@ private:
         auto distanceToPlane = abs(dot(v, direction));
         
         //Direction is inversed
-        auto y =  (dot(v, vertical) / (distanceToPlane) )* (fd + sensorDistance) / (aperture * .5f);
-        auto x =  (dot(v, horizontal) / (distanceToPlane)) * (fd + sensorDistance) / (aperture * .5f);
+        auto y =  (dot(v, vertical) / (distanceToPlane) )* (fd) / (aperture * .5f);
+        auto x =  (dot(v, horizontal) / (distanceToPlane)) * (fd) / (aperture * .5f);
         rasterPos.y = (y * .5f + .5f);
         rasterPos.x = (x * .5f + .5f);
         $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
-            luisa::compute::device_log("raster = {}, {}, {},{}", focalLength, aperture, (fd + 5.f * sensorDistance) / (aperture * .5f), distanceToPlane);
+            luisa::compute::device_log("raster = {}, {}, {},{}", fl, aperture, (fd + 5.f * sensorDistance) / (aperture * .5f), distanceToPlane);
         };
         return rasterPos;
     }
 
-    Float2 GetRasterPosition_Luisa(Float3 pos, Float pro, Float ob, Int2 size) const{
+    Float2 GetRasterPosition_Luisa(Float3 pos, Int2 size, const Camera::Instance *camera) const {
 
         // Camera basis (forward, right, up)
+        Float aperture;
+        Float fl;
+        Float fd;
+        Float sensorDistance;
+        Bool get_c_param = camera->get_camera_param(aperture, fl, fd, sensorDistance);
+        aperture = fl / aperture;
+
         Float2 rasterPos;
-        Float3 origin = node<OwnkernelPathTracing>()->look_at();
+
+        Float ob = fd / sensorDistance;
+        Float pro_ratio = ob * .024f / size.x;
+
+
+        Float3 origin = node<OwnkernelPathTracing>()->position();
         Float3 direction = normalize(node<OwnkernelPathTracing>()->look_at());
         auto vertical = normalize(node<OwnkernelPathTracing>()->up());
         auto horizontal = normalize(cross(direction, vertical));
         
-        Float focalLength = node<OwnkernelPathTracing>()->focal_length() * float(1e-3);
-        Float aperture = node<OwnkernelPathTracing>()->aperture();
-        auto focalLengthScale = 1.f / focalLength;
-        focalLength = 1.f;
+        
+        auto focalLengthScale = 1.f / fl;
+        fl = 1.f;
         aperture *= focalLengthScale;
 
-        auto fd = node<OwnkernelPathTracing>()->focus_distance();
-        auto fl = node<OwnkernelPathTracing>()->focal_length() * float(1e-3);
-        Float sensorDistance = 1.f / (1.f / fl - 1.f / fd);
+       
 
         // Transform into camera space
         Float3 v = pos - origin;
@@ -816,14 +812,14 @@ private:
         auto py = y_cam  / (z_cam + 12.5f * sensorDistance);
 
         // convert to pixel units
-        auto px2 = px / (pro * size.x );
-        auto py2 = py / (pro * size.y );
+        auto px2 = px / (pro_ratio * size.x );
+        auto py2 = py / (pro_ratio * size.y );
 
         // shift origin to image center
         rasterPos.y = (py2 * .5f + .5f);
         rasterPos.x = (px2 * .5f + .5f);
         $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
-            luisa::compute::device_log("raster = {}, {}, {},{}", ob, pro, sensorDistance, z_cam);
+            luisa::compute::device_log("raster = {}, {}, {},{}", ob, pro_ratio, sensorDistance, z_cam);
             luisa::compute::device_log("raster2 = {}, {},{}", aperture, px, py);
         };
         return rasterPos;
@@ -1279,7 +1275,14 @@ private:
         auto direction = normalize(node<OwnkernelPathTracing>()->look_at());
         auto vertical = normalize(make_float3(0.f, 1.f, 0.f));
         auto horizontal = normalize(cross(direction, vertical));
-        auto aperture = node<OwnkernelPathTracing>()->aperture();
+        //auto aperture = node<OwnkernelPathTracing>()->aperture();
+
+        Float aperture;
+        Float fl;
+        Float fd;
+        Float sensorDistance;
+        Bool get_c_param = camera->get_camera_param(aperture, fl, fd, sensorDistance);
+        aperture = fl / aperture;
         
         std::optional<luisa::compute::Int> selectedComponent{};
         std::optional<luisa::compute::Float3> pdfRecords{};
@@ -1290,21 +1293,39 @@ private:
         auto tragetRatio = Float(size.x) / Float(size.y);
         auto currentRatio = 1.f;
 
+        
+
+
         //no crop
 
         //auto rasterPos = GetRasterPosition(first->p(), 0, size);
 
         //generate camera ray
         //tryTimes.emplace(1.f);
-        auto fd = node<OwnkernelPathTracing>()->focus_distance();
-        auto fl = node<OwnkernelPathTracing>()->focal_length() * float(1e-3);
-        Float sensorDistance = 1.f / (1.f / fl - 1.f / fd);
+        //auto fd = node<OwnkernelPathTracing>()->focus_distance();
+        //auto fl = node<OwnkernelPathTracing>()->focal_length() * float(1e-3);
+        //Float sensorDistance = 1.f / (1.f / fl - 1.f / fd);
+        
 
         sampler()->start(pixel_id, frame_index);
         auto u_filter = sampler()->generate_pixel_2d();
         auto u_lens = camera->node()->requires_lens_sampling() ? sampler()->generate_2d() : make_float2(.5f);
         auto [camera_ray, camera_pixel, camera_weight] = camera->generate_ray(pixel_id, time, u_filter, u_lens);
         Bool positionrec = false;
+        
+         $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+             Bool t_p;
+             Float t_aper;
+             Float t_fl;
+             Float t_fd;
+             Float t_sd;
+             t_p = camera->get_camera_param(t_aper, t_fl, t_fd, t_sd);
+             Float t_fn = t_fl / t_aper;
+             luisa::compute::device_log("camera_p = {},{},{},{},{}", t_aper, t_fl, t_fd, t_sd, t_fn);
+            
+        };
+
+
         //records = _device.create_buffer<DoFRecord>(SCREEN_SPACE_RECORD_RES * SCREEN_SPACE_RECORD_RES);
         $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
             //luisa::compute::device_log("camera = {}, {}", camera_ray->origin(), camera_ray->direction());
@@ -1317,12 +1338,7 @@ private:
         Float3 origin = node<OwnkernelPathTracing>()->position();
         auto first = pipeline().geometry()->intersect(camera_ray);
 
-        auto d = length(origin - first->p());
-        //auto scale = (d - node<OwnkernelPathTracing>()->focus_distance()) / (d * (node<OwnkernelPathTracing>()->focus_distance() - node<OwnkernelPathTracing>()->focal_length() * float(1e-3)));
-        //auto diameter = abs(scale * (node<OwnkernelPathTracing>()->focal_length() * float(1e-3) * node<OwnkernelPathTracing>()->focal_length() * float(1e-3) / node<OwnkernelPathTracing>()->aperture()));
-        auto scale = (d - node<OwnkernelPathTracing>()->focus_distance()) / (d * (node<OwnkernelPathTracing>()->focus_distance() - sensorDistance));
-        auto diameter = abs(scale * sensorDistance * (node<OwnkernelPathTracing>()->focal_length() * float(1e-3) / node<OwnkernelPathTracing>()->aperture()));
-        //auto radius = diameter * 0.5f;
+        
         auto coord = dispatch_id().xy();
         auto coord1D = coord.y * size.x + coord.x;
         auto con = countBuffer->read(coord1D);
@@ -1342,18 +1358,19 @@ private:
         
 
         auto object_to_sensor_ratio = (fd / sensorDistance);
-        auto projected_pixel_size =
 
+        auto projected_pixel_size =
             // portrait mode
             min((object_to_sensor_ratio * .024f / resox),
                 (object_to_sensor_ratio * .036f / resoy));
+
         auto pix = make_float2(coord.x.cast<Float>(), coord.y.cast<Float>());
         auto coord_focal = (camera_pixel - pixel_offset) * projected_pixel_size;
         //coord_focal.x = .024f * coord_focal.x * 2.f / resolution.x;
         //coord_focal.y = .036f * coord_focal.y * 2.f / resolution.y;
         auto inverse_projected = 1.f / projected_pixel_size;
 
-        auto pos = node<OwnkernelPathTracing>()->position() + (coord_focal.x * horizontal) + (-coord_focal.y * vertical) + (-sensorDistance * direction);
+        auto pos = node<OwnkernelPathTracing>()->position() + (coord_focal.x * horizontal) + (coord_focal.y * vertical) + (-sensorDistance * direction);
         
         
 
@@ -1363,13 +1380,15 @@ private:
         Var<Ray> g_ray; 
         Float3 pssSample = normalize(make_float3(0.5f));
         Float3 dir = make_float3(0.f);
-        const auto lensRadius =  .5f * node<OwnkernelPathTracing>()->focal_length() * float(1e-3) / ( node<OwnkernelPathTracing>()->aperture());
+        const auto lensRadius =  .5f * fl / ( aperture);
         //const auto focusDir = normalize(direction * sensorDistance + rasterPos.x * horizontal  + rasterPos.y * vertical  );
         //
         //const auto focusPoint = origin + focusDir * focusDistance * make_float3( focusDistance / node<OwnkernelPathTracing>()->focus_distance(),  focusDistance / node<OwnkernelPathTracing>()->focus_distance(), 1.f);
-        const auto focusPoint = node<OwnkernelPathTracing>()->position() + (coord_focal.x * horizontal) +  (-coord_focal.y * vertical) + (fd * direction);
-        const auto focusDir = normalize((coord_focal.x * horizontal) + (-coord_focal.y * vertical) + (fd * direction));
-        const auto focusDistance = node<OwnkernelPathTracing>()->focus_distance();
+ //mark0
+        const auto cameraPoint = node<OwnkernelPathTracing>()->position() + (coord_focal.x * horizontal) + (coord_focal.y * vertical) + (fd * direction);
+        const auto focusPoint = node<OwnkernelPathTracing>()->position() + (-coord_focal.x * horizontal) +  (-coord_focal.y * vertical) + (fd * direction);
+        const auto focusDir = normalize((coord_focal.x * horizontal) + (coord_focal.y * vertical) + (fd * direction));
+        const auto focusDistance = fd;
          $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
             //luisa::compute::device_log("camera = {}, {}", camera_ray->origin(), camera_ray->direction());
             luisa::compute::device_log("pos2 = {}, {}, {}", lensRadius, focusPoint, focusDistance);
@@ -1385,7 +1404,7 @@ private:
         Var<uint> usedG3ds = 0u;
       
         
-      
+ //mark1     
         Float3 invras = (make_float3(focusDir.x, focusDir.y, 0.f));
         Float invdis = length(invras);
         invras = normalize(invras);
@@ -1412,7 +1431,7 @@ private:
             luisa::compute::device_log("angle = {}, {}", theta0, theta02);
             
         };
-        
+ //mark1
 
         auto g3d = g3dBuffer->read(0u);
         auto g3dC = g3d.xyz();
@@ -1638,7 +1657,7 @@ private:
                         cosTheta *= -1.f;
                         sampledDir *= -1.f;
                     };
-                    auto distance = node<OwnkernelPathTracing>()->focus_distance() / cosTheta;
+                    auto distance = fd / cosTheta;
                     origin = focusPoint - sampledDir * distance;
                     
                     auto pixel_center = node<OwnkernelPathTracing>()->position();
@@ -1706,6 +1725,7 @@ private:
                     
                 }
                 $else {
+       //mark2
                     //LUISA_INFO("coming.");
                     Float2 sample = sampler()->generate_2d();
                     Float2 c = sample_uniform_disk_concentric(sample);
@@ -1793,7 +1813,7 @@ private:
         };
         
         $if (z == 2) {
-            Float scalor = node<OwnkernelPathTracing>()->focus_distance() / dot(normalize(g_ray->direction()), normalize(node<OwnkernelPathTracing>()->look_at()));
+            Float scalor = fd / dot(normalize(g_ray->direction()), normalize(node<OwnkernelPathTracing>()->look_at()));
             Float3 fp = g_ray->origin() + g_ray->direction() * scalor;
 
             Float dist2 = length_squared(focusPoint - g_ray->origin());
@@ -1981,7 +2001,7 @@ private:
 
         $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
             //luisa::compute::device_log("beta = {}", beta);
-            //luisa::compute::device_log("energy/valid = {} / {}", energy, g_first->p());
+            luisa::compute::device_log("energy/valid = {} / {}", energy, g_first->valid());
         };
 
          $if (g_first->valid()) {
@@ -1992,21 +2012,21 @@ private:
             auto dis = d * d_angle;
             //auto scale = (d - node<OwnkernelPathTracing>()->focus_distance()) / (d * (node<OwnkernelPathTracing>()->focus_distance() - node<OwnkernelPathTracing>()->focal_length() * float(1e-3)));
             //auto diameter = abs(scale * (node<OwnkernelPathTracing>()->focal_length() * float(1e-3) * node<OwnkernelPathTracing>()->focal_length() * float(1e-3) / node<OwnkernelPathTracing>()->aperture()));
-            auto scale = (dis - node<OwnkernelPathTracing>()->focus_distance()) / (dis * (node<OwnkernelPathTracing>()->focus_distance() - (  sensorDistance)));
-            auto diameter = abs(scale *(   sensorDistance) * (node<OwnkernelPathTracing>()->focal_length() * float(1e-3) / node<OwnkernelPathTracing>()->aperture()));
+            auto scale = (dis - fd) / (dis * (fd - (  sensorDistance)));
+            auto diameter = abs(scale * sensorDistance * fl / aperture);
 
-            auto fd = node<OwnkernelPathTracing>()->focus_distance();
-            auto A = node<OwnkernelPathTracing>()->aperture();// ŠJŒû’¼Œa
+            //auto fd = node<OwnkernelPathTracing>()->focus_distance();
+            //auto A = node<OwnkernelPathTracing>()->aperture();// ŠJŒû’¼Œa
 
-            auto coc = abs((dis - fd) / dis) * (0.5f * A);// ”¼Œa
+            //auto coc = abs((dis - fd) / dis) * (0.5f * A);// ”¼Œa
             //auto diameter = coc * 2.0f;
 
 
 
             auto radius = diameter * 0.5f;
-            auto radiusRatio = constants::pi * sqr(radius) / (node<OwnkernelPathTracing>()->aperture() * node<OwnkernelPathTracing>()->aperture());
+            auto radiusRatio = constants::pi * sqr(radius) / (aperture * aperture);
 
-            auto screenSpaceRadius =   radius / node<OwnkernelPathTracing>()->aperture();
+            auto screenSpaceRadius =   radius / aperture;
 
             //auto coord = dispatch_id().xy();
             //auto coord1D = coord.y * size.x + coord.x;
@@ -2016,8 +2036,9 @@ private:
             auto normalizedPos = make_float2(coord.x.cast<float>() / size.x.cast<float>(), coord.y.cast<float>() / size.y.cast<float>());
 
             $if (true) {
-                //auto posScreen = GetRasterPosition(make_float3(g_first->p().x, -g_first->p().y, g_first->p().z), 0, size, projected_pixel_size);
-                auto posScreen = GetRasterPosition_Luisa(make_float3(g_first->p().x, -g_first->p().y, g_first->p().z), projected_pixel_size, object_to_sensor_ratio, size);
+        
+               // auto posScreen = GetRasterPosition_Luisa(make_float3(g_first->p().x, g_first->p().y, g_first->p().z), size, camera);
+                auto posScreen = GetRasterPosition(g_first->p(), size, camera);
                 Float energyWeight = 1.f;
                 {
                     energyWeight = exp(-16.f * length(normalizedPos - posScreen));
@@ -2027,7 +2048,7 @@ private:
                 auto pointToBounce = normalize(g_first->p() - g_ray->origin());
                 auto forward = node<OwnkernelPathTracing>()->look_at() - node<OwnkernelPathTracing>()->position() / length(node<OwnkernelPathTracing>()->look_at() - node<OwnkernelPathTracing>()->position());
                 auto cosTheta0 = dot(forward, pointToBounce);
-                auto width = ((node<OwnkernelPathTracing>()->aperture() / (node<OwnkernelPathTracing>()->focal_length() * float(1e-3))) * d * cosTheta0 ) / float(SCREEN_SPACE_RECORD_RES);
+                auto width = ((aperture / fl) * d * cosTheta0 ) / float(SCREEN_SPACE_RECORD_RES);
                
                 //auto distance = length(g_first->p() - g_ray->origin());
                 //auto fd = node<OwnkernelPathTracing>()->focus_distance();
@@ -2041,7 +2062,8 @@ private:
 
 
                 $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
-                  luisa::compute::device_log("gpos = {}, {}, {}, {}", diameter, posScreen, screenSpaceRadius, dis);
+                    luisa::compute::device_log("gfirst = {}", g_first->p());
+                    luisa::compute::device_log("gpos = {}, {}, {}, {}", diameter, posScreen, screenSpaceRadius, dis);
                 };
 
                 $if (screenSpaceRadius > RADIUS_THRESHOLD & all(posScreen > 0.f) & all(posScreen < 1.f)) {
@@ -2197,6 +2219,14 @@ private:
         Var<uint> coordy = pixel_id.y;
         Bool positionRecorded = false;
         Var<uint> sampleId = coordx + coordy * size.x;
+
+         Float aperture;
+        Float fl;
+        Float fd;
+        Float sensorDistance;
+        Bool get_c_param = camera->get_camera_param(aperture, fl, fd, sensorDistance);
+
+
         //std::vector<int> hostLabels;
         //hostLabels.resize(labelBuffer.size());
         //Accel init
@@ -2228,8 +2258,8 @@ private:
 
         auto first = pipeline().geometry()->intersect(camera_ray);
         auto d = length(camera_ray->origin() - first->p());
-        auto scale = (d - node<OwnkernelPathTracing>()->focus_distance()) / (d * (node<OwnkernelPathTracing>()->focus_distance() - node<OwnkernelPathTracing>()->focal_length() * float(1e-3)));
-        auto diameter = abs(scale * (node<OwnkernelPathTracing>()->focal_length() * float(1e-3) * node<OwnkernelPathTracing>()->focal_length() * float(1e-3) / node<OwnkernelPathTracing>()->aperture()));
+        auto scale = (d - fl) / (d * (fd - fl * float(1e-3)));
+        auto diameter = abs(scale * (fl * fl / aperture));
         //auto scale = (d - node<OwnkernelPathTracing>()->focus_distance()) / (d * (node<OwnkernelPathTracing>()->focus_distance() - sensorDistance));
         //auto diameter = abs(scale * sensorDistance * (node<OwnkernelPathTracing>()->focal_length() * float(1e-3) / node<OwnkernelPathTracing>()->aperture()));
         auto radius = diameter * 0.5f;
@@ -2350,21 +2380,21 @@ private:
             //auto size = dispatch_size().xy();
             Int2 size = node<OwnkernelPathTracing>()->resolution();
             auto d = length(camera_ray->origin() - first->p());
-            auto scale = (d - node<OwnkernelPathTracing>()->focus_distance()) / (d * (node<OwnkernelPathTracing>()->focus_distance() - node<OwnkernelPathTracing>()->focal_length() * float(1e-3)));
-            auto diameter = abs(scale * (node<OwnkernelPathTracing>()->focal_length() * float(1e-3) * node<OwnkernelPathTracing>()->focal_length() * float(1e-3) / node<OwnkernelPathTracing>()->aperture()));
+            auto scale = (d - fd) / (d * (fd - fl));
+            auto diameter = abs(scale * fl * fl / aperture);
             //auto scale = (d - node<OwnkernelPathTracing>()->focus_distance()) / (d * (node<OwnkernelPathTracing>()->focus_distance() - sensorDistance));
             //auto diameter = abs(scale * sensorDistance * (node<OwnkernelPathTracing>()->focal_length() * float(1e-3) / node<OwnkernelPathTracing>()->aperture()));
             auto radius = diameter * 0.5f;
-            auto radiusRatio = constants::pi * sqr(radius) / (node<OwnkernelPathTracing>()->aperture() * node<OwnkernelPathTracing>()->aperture());
+            auto radiusRatio = constants::pi * sqr(radius) / (aperture * aperture);
 
-            auto screenSpaceRadius = radius / node<OwnkernelPathTracing>()->aperture();
+            auto screenSpaceRadius = radius / aperture;
 
             auto coord = dispatch_id().xy();
             auto coord1D = coord.y * size.x + coord.x;
             auto normalizedPos = make_float2(coord.x.cast<float>() / size.x.cast<float>(), coord.y.cast<float>() / size.y.cast<float>());
 
             $if (pixel_id.x < SCREEN_SPACE_RECORD_RES) {
-                auto posScreen = GetRasterPosition(first->p(), 0, size, scale);
+                auto posScreen = GetRasterPosition(first->p(), size, camera);
                 Float energyWeight = 1.f;
                 {
                     energyWeight = exp(-16.f * length(normalizedPos - posScreen));
@@ -2373,7 +2403,7 @@ private:
                 auto distance = length(first->p() - camera_ray->origin());
                 auto pointToBounce = normalize(first->p() - camera_ray->origin());
                 auto cosTheta0 = dot(node<OwnkernelPathTracing>()->look_at(), pointToBounce);
-                auto width = ((node<OwnkernelPathTracing>()->aperture() / node<OwnkernelPathTracing>()->focal_length() * float(1e-3)) * d * cosTheta0) / float(SCREEN_SPACE_RECORD_RES);
+                auto width = ((aperture / fl) * d * cosTheta0) / float(SCREEN_SPACE_RECORD_RES);
 
                 $if (screenSpaceRadius > RADIUS_THRESHOLD & all(posScreen > 0.f) & all(posScreen < 1.f)) {
                     //auto recordId = (posScreen.x * SCREEN_SPACE_RECORD_RES).cast<uint>() + (posScreen.y * SCREEN_SPACE_RECORD_RES).cast<uint>() * SCREEN_SPACE_RECORD_RES;
@@ -2555,7 +2585,7 @@ private:
         auto shutter_samples = camera->node()->shutter_samples();
         command_buffer << synchronize();
 
-        LUISA_INFO("Rendering override.");
+        LUISA_INFO("Rendering ownreal.");
         Clock clock;
         ProgressBar progress;
         progress.update(0.);
