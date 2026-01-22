@@ -8,13 +8,15 @@
 
 //#define LIS_EXPERIMENT
 
-constexpr auto X = 0;
+constexpr auto X = 20;
 constexpr auto Y = 0;
 constexpr auto CHAIN = 20;
 constexpr unsigned RESOLUTION = 256;
 constexpr unsigned MAX_I = 32;
 constexpr float solver_threshold = 1e-4f;
 constexpr float step_scale = 1.f;
+constexpr float length_threshold = 1e-4f;
+constexpr float angle_threshold = 1e-3f;
 
 struct BB2D {
     luisa::compute::Float2 packed_min;
@@ -79,10 +81,11 @@ struct ME_element {
     luisa::compute::float3 first;
     luisa::compute::float3 emit;
     float sign;
+    int use;
 };
 
 LUISA_STRUCT(ME_element,
-             first, emit, sign) {};
+             first, emit, sign, use) {};
 
 namespace luisa::render {
 
@@ -1857,7 +1860,7 @@ public:
         return compute;
     }
 
-    Bool reproject(const Float3 start, const Float3 emit, Var<ChainVerts[20]> proposed_path) const {
+    Bool reproject(const Float3 start, const Float3 emit, Var<ChainVerts[20]> proposed_path, const Int size) const {
         
         Float3 first_point = proposed_path[0].point;
         Float3 direction_to_first = first_point - start;
@@ -1868,7 +1871,7 @@ public:
         Bool success = TraceLences(proposed_ray, &generate_ray);
 
         $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
-            luisa::compute::device_log("newton {}", proposed_path[0].point);
+            //luisa::compute::device_log("newton {}", proposed_path[0].point);
             
         };
 
@@ -1878,9 +1881,29 @@ public:
             Float3 target = generate_ray->origin() + t * generate_ray->direction();
             $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
                 
-                luisa::compute::device_log("newton {}, {}", proposed_path[1].point, generate_ray->origin());
-                luisa::compute::device_log("newton_target {},{}", target, start);
+                //luisa::compute::device_log("newton {}, {}", proposed_path[1].point, generate_ray->origin());
+                //luisa::compute::device_log("newton_target {},{}", target, start);
             };
+
+            Float check_d = length(generate_ray->origin() - proposed_path[size - 1].point);
+            Float angle_d;
+            $if (check_d > length_threshold) {
+                success = false;
+            }
+            $else {
+                Float3 target_angle = normalize(emit - proposed_path[size - 1].point);
+                angle_d = 1.f - dot(normalize(generate_ray->direction()), target_angle);
+                $if (angle_d > angle_threshold) {
+                    success = false;
+                };
+            };
+            
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+
+                luisa::compute::device_log("difference {}, {}", check_d, angle_d);
+                //luisa::compute::device_log("newton_target {},{}", target, start);
+            };
+
         };
         
 
@@ -1978,7 +2001,7 @@ public:
             };
 
             // Project back to surfaces
-            Bool project_success = reproject(start, emit, proposed_path);
+            Bool project_success = reproject(start, emit, proposed_path, size);
             $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
                 luisa::compute::device_log("reproject {}", project_success);
             };
@@ -2001,7 +2024,7 @@ public:
                 
             };
 
-            project_success = (max_C * 2.f> max_C_p);
+            project_success = (max_C > max_C_p);
 
 
             $if (!project_success) {
@@ -2203,6 +2226,7 @@ public:
             }
             $else {
                 elem.first = first_ray->origin();
+                elem.use = 1;
                 element->write(coord1D, elem);
             };
         }
@@ -2210,9 +2234,16 @@ public:
             $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
                 luisa::compute::device_log("Manifold Exploration start");
             };
-            Float3 start = elem.first;
-            Float3 emit = elem.emit;
-            trace = newton_solver(start, emit, path);
+            Float3 emit;
+            $if(elem.use != 1) {
+                trace = false;
+            }
+            $else {
+                Float3 start = elem.first;
+                Float3 emit = elem.emit;
+                trace = newton_solver(start, emit, path);
+            };
+            
             $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
                 luisa::compute::device_log("Manifold Exploration {}", trace);
             };

@@ -19,7 +19,7 @@
 //constexpr auto X = 248;
 //constexpr auto Y = -453;
 
-constexpr auto X = 0;
+constexpr auto X = 20;
 constexpr auto Y = 0;
 constexpr auto upright = 61176;
 constexpr auto midtower = 384758;
@@ -1328,7 +1328,7 @@ private:
 
         }
         $else {
-            Float3 emit = make_float3(0.1f, 0.1f, -5.f);
+            Float3 emit = make_float3(0.f, 0.f, -5.f);
             auto [_, __, ___] = camera->get_ray_Manifold(pixel_id, u_filter, emit, 1.f);
             auto [manifold_ray, manifold_pixel, manifold_weight] = camera->generate_ray(pixel_id, time, u_filter, u_lens);
             camera_ray = manifold_ray;
