@@ -68,6 +68,7 @@ struct ChainVerts {
     luisa::compute::float2x2 inv_lambda;
     luisa::compute::float2 dx;
     
+    
   
 };
 
@@ -75,12 +76,13 @@ LUISA_STRUCT(ChainVerts,
              point, n, index, center, u, v, dp_du, dp_dv, s, t, ds_du, ds_dv, dt_du, dt_dv, C, dC_dx_prev, dC_dx_cur, dC_dx_next, tmp, inv_lambda, dx) {};
 
 struct ME_element {
+    luisa::compute::float3 first;
     luisa::compute::float3 emit;
     float sign;
 };
 
 LUISA_STRUCT(ME_element,
-             emit, sign) {};
+             first, emit, sign) {};
 
 namespace luisa::render {
 
@@ -436,6 +438,10 @@ public:
 
     auto invert (const Float2x2 &A, Float2x2 &Ainv) const {
         Float determinant = det(A);
+        $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+            
+            //luisa::compute::device_log("det {}", determinant);
+        };
         Bool invert = true;
         $if (abs(determinant) == 0) {
             invert = false;
@@ -1325,6 +1331,22 @@ public:
         return u;
     }
 
+    Float unwrap_u(Float u_wrapped, Float u_ref) const {
+        // u_wrapped: 0..1
+        Float ret;
+        Float a = u_wrapped;
+        Float b = u_wrapped + 1.f;
+        Float c = u_wrapped - 1.f;
+        Float da = abs(a - u_ref);
+        Float db = abs(b - u_ref);
+        Float dc = abs(c - u_ref);
+        ret = a;
+        $if (db < da & db < dc) { ret = b; };
+        $if (dc < da & dc < db) { ret = c; };
+        return ret;
+    }
+
+
     void sphere_uv_from_xyz(const Float3& p, const Float3& c, Float r, Float& u, Float& v) const{//safe Ì—p
         const Float pi = (Float)3.14159265358979323846;
         const Float two_pi = (Float)6.2831853071795864769;
@@ -1362,12 +1384,12 @@ public:
         
     }
 
-    void sphere_p_n_dp_uv(const Float3& c, Float r, Float u, Float v, Float3& p, Float3& n, Float3& dp_du, Float3& dp_dv) const {
+    void sphere_p_n_dp_uv(const Float3& c, Float r, Float u_in, Float v_in, Float3& p, Float3& n, Float3& dp_du, Float3& dp_dv) const {
         const Float pi = (Float)3.14159265358979323846;
         const Float two_pi = (Float)6.2831853071795864769;
 
-        u = wrap01(u);
-        v = clamp(v, 0.f, 1.f);
+        Float u = wrap01(u_in);
+        Float v = clamp(v_in, 0.f, 1.f);
 
         Float theta = two_pi * u;
         Float phi = pi * v;
@@ -1435,24 +1457,35 @@ public:
         auto dex = path.index;
         auto radius = abs(curvanature->read(dex));
 
+        Float u_wrapped = 0.f;
+        Float v_wrapped = 0.f;
 
 
 
+        sphere_uv_from_xyz(path.point, path.center, radius, u_wrapped, v_wrapped);
 
-        sphere_uv_from_xyz(path.point, path.center, radius, path.u, path.v);
+        path.v = v_wrapped;
+        path.u = unwrap_u(u_wrapped, path.u);
+
+
+
         Float3 pos_from_uv;
         Float3 nor_from_uv;
 
+        //mark
         sphere_p_n_dp_uv(path.center, radius, path.u, path.v, pos_from_uv, nor_from_uv, path.dp_du, path.dp_dv);
         $if(nor_from_uv.z < 0.f) {
-            nor_from_uv = nor_from_uv * -1.f;
+            //nor_from_uv = nor_from_uv * -1.f;
         };
+
+        //mark
+        path.n = nor_from_uv;
 
         build_tangent_frame_from_dp(path.dp_du, path.dp_dv, nor_from_uv, path.s, path.t);
 
         //u-derivs
-        Float u_p = wrap01(path.u + eps_u);
-        Float u_m = wrap01(path.u - eps_u);
+        Float u_p = path.u + eps_u;
+        Float u_m = path.u - eps_u;
 
         Float3 pos_from_uv_up;
         Float3 nor_from_uv_up;
@@ -1481,7 +1514,7 @@ public:
 
         //v-derivs
         Float v_p = clamp(path.v + eps_v, 0.f, 1.f);
-        Float v_m = clamp(path.v + eps_v, 0.f, 1.f);
+        Float v_m = clamp(path.v - eps_v, 0.f, 1.f);
 
         Float dv_p = v_p - path.v;
         Float dv_m = path.v - v_m;
@@ -1654,7 +1687,7 @@ public:
             $else {
                 wo = x_next - x_cur;
             };
-            $if (length(wo) < 1e-5f) {
+            $if (length(wo) < 1e-7f) {
                 compute = false;
                 $break;
             };
@@ -1663,7 +1696,7 @@ public:
 
             //set wi
             Float3 wi = x_prev - x_cur;
-            $if (length(wi) < 1e-5f) {
+            $if (length(wi) < 1e-7f) {
                 compute = false;
                 $break;
             };
@@ -1824,9 +1857,9 @@ public:
         return compute;
     }
 
-    Bool reproject(const Float3 start, const Float3 emit, ArrayFloat3<20> proposed_path) const {
+    Bool reproject(const Float3 start, const Float3 emit, Var<ChainVerts[20]> proposed_path) const {
         
-        Float3 first_point = proposed_path[0];
+        Float3 first_point = proposed_path[0].point;
         Float3 direction_to_first = first_point - start;
 
         Var<Ray> proposed_ray = make_ray(start, direction_to_first);
@@ -1834,10 +1867,20 @@ public:
 
         Bool success = TraceLences(proposed_ray, &generate_ray);
 
+        $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+            luisa::compute::device_log("newton {}", proposed_path[0].point);
+            
+        };
+
         $if (success) {
             Float distance = emit.z - generate_ray->origin().z;
             Float t = distance / generate_ray->direction().z;
             Float3 target = generate_ray->origin() + t * generate_ray->direction();
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                
+                luisa::compute::device_log("newton {}, {}", proposed_path[1].point, generate_ray->origin());
+                luisa::compute::device_log("newton_target {},{}", target, start);
+            };
         };
         
 
@@ -1847,14 +1890,19 @@ public:
 
 
     Bool newton_solver(const Float3 start, const Float3 emit, Var<ChainVerts[CHAIN]>& path) const {
+        $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+            luisa::compute::device_log("newton {}, {}", start, emit);
+        };
+        
         Bool newton = true;
+        Float number = 0.f;
 
         Bool success = false;
         UInt iterations = 0u;
         Float beta = 1.f;
         
-        ArrayFloat3<20> proposed_path;
-/*
+        Var<ChainVerts[CHAIN]> proposed_path = path;
+
         
         Int size = 0;
         $for (i, CHAIN) {
@@ -1873,6 +1921,9 @@ public:
                 $if (use_half_vector) {
                     // Use standard manifold formulation using half-vector constraints
                     step_success = compute_der_halfvector(start, emit, path);
+                    $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                        //luisa::compute::device_log("step_suc {}", step_success);
+                    };
                 }
                 $else {
                     // Use angle-difference constraint formulation
@@ -1884,15 +1935,27 @@ public:
                 $break;
             };
 
+
+            
             // Check for success
             Bool converged = true;
-            
+            Float max_C = 0.f;
             $for (i, size) {
+                
+                $if(max_C < length(path[i].C)) {
+                    max_C = length(path[i].C);
+                };
 
                 $if (length(path[i].C) > solver_threshold) {
                     converged = false;
+                    
                     $break;
                 };
+            };
+
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                luisa::compute::device_log("convege {}", max_C);
+                
             };
 
             $if (converged) {
@@ -1902,16 +1965,45 @@ public:
 
             // Make a proposal
             $for (i, CHAIN) {
-                proposed_path[i] = make_float3(0.f);
+                proposed_path[i].point = make_float3(0.f);
             };
             
             $for (i, size) {
                 Float3 p_prop = path[i].point - step_scale * beta * (path[i].dp_du * path[i].dx[0] + path[i].dp_dv * path[i].dx[1]);
-                proposed_path[i] = p_prop;
+                proposed_path[i].point = p_prop;
+                $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                    luisa::compute::device_log("dx {}", path[i].dx);
+                    
+                };
             };
 
             // Project back to surfaces
             Bool project_success = reproject(start, emit, proposed_path);
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                luisa::compute::device_log("reproject {}", project_success);
+            };
+
+            Bool temp = compute_der_halfvector(start, emit, proposed_path);
+
+            Float max_C_p = 0.f;
+            $for (i, size) {
+                
+                $if (max_C_p < length(proposed_path[i].C)) {
+                    max_C_p = length(proposed_path[i].C);
+                };
+
+                
+            };
+
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                //luisa::compute::device_log("convege_p {}", max_C_p);
+                //luisa::compute::device_log("beta {}", beta);
+                
+            };
+
+            project_success = (max_C * 2.f> max_C_p);
+
+
             $if (!project_success) {
                 beta = 0.5f * beta;
                 needs_step_update = false;
@@ -1919,7 +2011,7 @@ public:
             $else {
                 beta = min(1.f, 2.f * beta);
                 $for (i, size) {
-                    path[i].point = proposed_path[i];
+                    path[i].point = proposed_path[i].point;
                 };
                 needs_step_update = true;
             };
@@ -1971,7 +2063,7 @@ public:
                 Float cos_theta_i = dot(path[i].n, wi);
                 Float cos_theta_o = dot(path[i].n, wo);
                 Bool refract = cos_theta_i * cos_theta_o < 0.f;
-                Bool reflect = !refraction;
+                Bool reflect = !refract;
 
                 Float eta;
                 auto dex = path[i].index;
@@ -1998,8 +2090,11 @@ public:
                     newton = false;
                 };
             };
-        }; */
+        }; 
         
+        $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+            luisa::compute::device_log("bool {}", success);
+        };
 
         return newton;
     }
@@ -2030,7 +2125,7 @@ public:
         auto path = vertex->read(coord1D);
         auto elem = element->read(coord1D);
 
-        Clear_path(path);
+       
 
         auto data = _device_data->read(0u);
         Float SumZ = LensFrontZ(lc);
@@ -2091,29 +2186,46 @@ public:
         //test
         first_ray = make_ray(coordScene, test_d);
         //real system
-        
+        $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+            luisa::compute::device_log("coordScene {}", coordScene);
+        };
+
 
         Bool trace;
         $if (elem.sign == 0.f) {
             $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
                 luisa::compute::device_log("LensTrace");
             };
-
+            Clear_path(path);
             trace = TraceLences(first_ray, &ray, path);
             $if (!trace) {
                 weight = 0.f;
+            }
+            $else {
+                elem.first = first_ray->origin();
+                element->write(coord1D, elem);
             };
         }
         $elif (elem.sign == 1.f) {
             $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
-                luisa::compute::device_log("Manifold Exploration");
+                luisa::compute::device_log("Manifold Exploration start");
             };
-            Float3 start = coordScene;
+            Float3 start = elem.first;
             Float3 emit = elem.emit;
-            //trace = newton_solver(start, emit, path);
+            trace = newton_solver(start, emit, path);
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                luisa::compute::device_log("Manifold Exploration {}", trace);
+            };
             $if (!trace) {
                 weight = 0.f;
+            }
+            $else {
+                Float3 ray_o = path[lc - 1].point;
+                Float3 ray_d = emit - ray_o;
+                ray = make_ray(ray_o, ray_d);
+                weight = 1.f;
             };
+
         }
         $else {
             $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
@@ -2175,7 +2287,7 @@ public:
         //weight = weight * cos4Theta;
 
 
-        Float3 start = make_float3(0.f);
+        /* Float3 start = make_float3(0.f);
         Float3 emit = make_float3(0.f, 0.f, -5.f);
         Bool NS = newton_solver(start, emit, path);
         //test_ME
@@ -2186,7 +2298,7 @@ public:
         $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
             luisa::compute::device_log("test_ME = {}", NS);
             luisa::compute::device_log("test_ME = {}", path[0].point);
-        };
+        };*/
 
         
 /**/

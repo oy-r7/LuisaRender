@@ -1319,7 +1319,7 @@ private:
         Float camera_weight;
 
         auto j = recordCB->read(0);
-        $if(j == 0) {
+        $if(j % 2 == 0) {
             auto [me_ray, me_pixel, me_weight] = camera->get_ray_Manifold(pixel_id, u_filter, emit, 0.f);
             auto [cam_ray, cam_pixel, cam_weight] = camera->generate_ray(pixel_id, time, u_filter, u_lens);
             camera_ray = cam_ray;
@@ -1328,7 +1328,7 @@ private:
 
         }
         $else {
-            Float3 emit = make_float3(0.f, 0.f, -5.f);
+            Float3 emit = make_float3(0.1f, 0.1f, -5.f);
             auto [_, __, ___] = camera->get_ray_Manifold(pixel_id, u_filter, emit, 1.f);
             auto [manifold_ray, manifold_pixel, manifold_weight] = camera->generate_ray(pixel_id, time, u_filter, u_lens);
             camera_ray = manifold_ray;
@@ -1356,7 +1356,7 @@ private:
 
         //records = _device.create_buffer<DoFRecord>(SCREEN_SPACE_RECORD_RES * SCREEN_SPACE_RECORD_RES);
         $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
-            //luisa::compute::device_log("camera = {}, {}", camera_ray->origin(), camera_ray->direction());
+            luisa::compute::device_log("camera = {}, {}", camera_ray->origin(), camera_ray->direction());
             //luisa::compute::device_log("pos2 = {}, {}", lensRadius, focusPoint);
             //luisa::compute::device_log("pro = {},{},{}", camera_pixel, pixel_offset, projected_pixel_size);
             //luisa::compute::device_log("base = {},{},{}", camera_ray->origin(), vertical, horizontal);
