@@ -19,7 +19,7 @@
 //constexpr auto X = 248;
 //constexpr auto Y = -453;
 
-constexpr auto X = 20;
+constexpr auto X = 0;
 constexpr auto Y = 0;
 constexpr auto upright = 61176;
 constexpr auto midtower = 384758;
@@ -564,7 +564,7 @@ private:
     mutable luisa::compute::Buffer<luisa::float2> countBuffer = _device.create_buffer<float2>(SCREEN_SPACE_RECORD_RES * SCREEN_SPACE_RECORD_RES);
     mutable luisa::compute::Buffer<float> debug_pdf = _device.create_buffer<float>(SCREEN_SPACE_RECORD_RES * SCREEN_SPACE_RECORD_RES);
     //mutable luisa::compute::Buffer<luisa::float2> validpdf = _device.create_buffer<float2>(SCREEN_SPACE_RECORD_RES * SCREEN_SPACE_RECORD_RES);
-    mutable luisa::compute::Buffer<int> recordCB = _device.create_buffer<int>(1);
+    mutable luisa::compute::Buffer<int> recordCB = _device.create_buffer<int>(SCREEN_SPACE_RECORD_RES * SCREEN_SPACE_RECORD_RES);
 
     //luisa::compute::Buffer<float> curvanature = _device.create_buffer<float>(20);
     //luisa::compute::Buffer<Float> thick = _device.create_buffer<Float>(20);
@@ -1317,8 +1317,10 @@ private:
         Var<Ray> camera_ray;
         Float2 camera_pixel;
         Float camera_weight;
-
-        auto j = recordCB->read(0);
+        auto coord = dispatch_id().xy();
+        auto coord1D = coord.y * size.x + coord.x;
+        
+        auto j = recordCB->read(coord1D);
         $if(j % 2 == 0) {
             auto [me_ray, me_pixel, me_weight] = camera->get_ray_Manifold(pixel_id, u_filter, emit, 0.f);
             auto [cam_ray, cam_pixel, cam_weight] = camera->generate_ray(pixel_id, time, u_filter, u_lens);
@@ -1367,8 +1369,7 @@ private:
         auto first = pipeline().geometry()->intersect(camera_ray);
 
         
-        auto coord = dispatch_id().xy();
-        auto coord1D = coord.y * size.x + coord.x;
+        
         auto con = countBuffer->read(coord1D);
 
         auto lab = labelBuffer->read(coord1D);
@@ -2219,9 +2220,10 @@ private:
             //luisa::compute::device_log("test_ME = {}", me_weight);
             //luisa::compute::device_log("test_ME_ray = {},{}", me_ray->origin(), me_ray->direction());
             //luisa::compute::device_log("number = {}, {}", countB->read(coord1D), energy);
-            recordCB->atomic(0).fetch_add(1);
+            
         };
 
+        recordCB->atomic(coord1D).fetch_add(1);
 
 
         /* Float valuex = first->p().x;

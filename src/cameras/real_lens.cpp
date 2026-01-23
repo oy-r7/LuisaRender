@@ -8,7 +8,7 @@
 
 //#define LIS_EXPERIMENT
 
-constexpr auto X = 20;
+constexpr auto X = 0;
 constexpr auto Y = 0;
 constexpr auto CHAIN = 20;
 constexpr unsigned RESOLUTION = 256;
@@ -1588,8 +1588,8 @@ public:
     }
 
     //変化量の計算
-    Bool invert_tridiagonal_step(Var<ChainVerts[20]> &path, Int size) const{
-
+    Bool invert_tridiagonal_step(Var<ChainVerts[CHAIN]> &path, Int size) const{
+        /*
         Int si = size;
         Bool judge = true;
 
@@ -1628,9 +1628,84 @@ public:
             };
 
 
+        };*/
+
+        Int si = size;
+        Bool judge = true;
+
+        $if (si != 0) {
+            path[0].tmp = path[0].dC_dx_prev;
+            Var<float2x2> m = path[0].dC_dx_cur;
+
+            $if (!(invert(m, path[0].inv_lambda))) {
+                judge = false;
+            };
+
+            $if (judge) {
+                // gamma0 = inv(B0) * C0
+                path[0].tmp = path[0].inv_lambda * path[0].dC_dx_next;// gamma
+                // rhs0 = inv(B0) * r0
+                path[0].dx = path[0].inv_lambda * path[0].C;
+            };
+
+            $if (judge) {
+                $for (i, si - 1) {
+                    Int k = i + 1;
+
+                    /* Float2x2 A = path[k].dC_dx_prev;
+                    Float2x2 B = path[k].dC_dx_cur;
+
+                    Float2x2 denom = B - A * path[k - 1].tmp;
+                    Float2x2 inv_denom;
+                    $if (!invert(denom, inv_denom)) {
+                        judge = false;
+                        $break;
+                    };
+                    path[k].inv_lambda = inv_denom;
+
+                    // gamma_k = inv(denom) * C_k  (for k==n-1, C_k is unused but harmless)
+                    path[k].tmp = inv_denom * path[k].dC_dx_next;
+
+                    // rhs_k = inv(denom) * (r_k - A*rhs_{k-1})
+                    Float2 r = path[k].C - A * path[k - 1].dx;
+                    path[k].dx = inv_denom * r;*/
+
+                    path[k].tmp = path[k].dC_dx_prev * path[k - 1].inv_lambda;
+                    Float2x2 m = path[k].dC_dx_cur - path[k].tmp * path[k - 1].dC_dx_next;
+                    $if (!invert(m, path[k].inv_lambda)) {
+                        judge = false;
+                        $break;
+                    };
+                };
+            };
+
+            $if (judge) {
+                path[0].dx = path[0].C;
+                $for (i, si - 1) {
+                    Int k = i + 1;
+                    path[k].dx = path[k].C - path[k].tmp * path[k - 1].dx;
+                };
+
+                path[si - 1].dx = path[si - 1].inv_lambda * path[si - 1].dx;
+
+                $for (i, si - 1) {
+                    auto idx = si - i - 2;
+                    $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                        //luisa::compute::device_log("invert = {}", idx);
+                    };
+                    path[idx].dx = path[idx].inv_lambda * (path[idx].dx - path[idx].dC_dx_next * path[idx + 1].dx);
+                };
+            };
+            /*
+            $if (judge) {
+                // dx_{n-1} is already rhs_{n-1}
+                $for (j, si - 1) {
+                    Int k = (si - 2) - j;// n-2 .. 0
+                    path[k].dx = path[k].dx - path[k].tmp * path[k + 1].dx;
+                };*/
         };
 
-        return true;
+        return judge;
     }
 
 
@@ -1647,10 +1722,17 @@ public:
             };
         };
 
+        $if (curvanature->read(0) != 0.f) {
+            size = size + 1;
+        };
+
         $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
             //luisa::compute::device_log("ME_size = {}", size);
         };
         
+        $for (i, size) {
+            st_and_derivs_from_xyz_fd(path[i], 1e-4f, 1e-4f);
+        };
 
         $for (i, size) {
             //set C
@@ -1726,10 +1808,26 @@ public:
                 Float etaT = refraction->read(dex - 1);
                 eta = etaT / etaI;
             };
-            Float3 h = wi + eta * wo;
-            $if (eta != 1.f) {
-                h = h * -1.f;
+
+            Float3 nn = path[i].n;
+
+            $if (dot(nn, wi) > 0.f) {
+                // wi が外側に出ていく方向（=入射は内側から来た）
+                // incident medium は内側
+                
+                //path[i].n = -nn;// “入射側に向いた法線”へ揃える流儀も多い
+                nn = -nn;
+            }
+            $else {
+                // wi が内側へ向く（=入射は外側から来た）
+
+                nn = nn;
             };
+            Float3 h = wi + eta * wo;
+            $if (dot(h, nn) < 0.f) {
+                //h = h * -1.f;
+            };
+            h = h * -1.f;
             Float ilh = 1.f / length(h);
             h = normalize(h);
 
@@ -1764,21 +1862,21 @@ public:
             };*/
 
 
-            st_and_derivs_from_xyz_fd(path[i], 1e-4f, 1e-4f);
+            //st_and_derivs_from_xyz_fd(path[i], 1e-4f, 1e-4f);
             $if (i > 0) {
-                st_and_derivs_from_xyz_fd(path[i - 1], 1e-4f, 1e-4f);
+                //st_and_derivs_from_xyz_fd(path[i - 1], 1e-4f, 1e-4f);
             };
            
 
-            /*
+            
             $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
-                luisa::compute::device_log("one_function");
-                luisa::compute::device_log("u_v = {}, {}", path[i].u, path[i].v);
-                luisa::compute::device_log("du_dv = {}, {}", path[i].dp_du, path[i].dp_dv);
-                luisa::compute::device_log("s_t = {}, {}", path[i].s, path[i].t);
-                luisa::compute::device_log("s_t_du = {}, {}", path[i].ds_du, path[i].dt_du);
-                luisa::compute::device_log("s_t_dv = {}, {}", path[i].ds_dv, path[i].dt_dv);
-            };*/
+                //luisa::compute::device_log("one_function");
+                //luisa::compute::device_log("u_v = {}, {}", path[i].u, path[i].v);
+                //luisa::compute::device_log("du_dv = {}, {}", path[i].dp_du, path[i].dp_dv);
+                //luisa::compute::device_log("s_t = {}, {}", path[i].s, path[i].t);
+                //luisa::compute::device_log("s_t_du = {}, {}", path[i].ds_du, path[i].dt_du);
+                //luisa::compute::device_log("s_t_dv = {}, {}", path[i].ds_dv, path[i].dt_dv);
+            };
 
             
             // Derivative of specular constraint w.r.t. x_{i-1}
@@ -1870,6 +1968,15 @@ public:
 
         Bool success = TraceLences(proposed_ray, &generate_ray);
 
+
+         $for (i, size) {
+            auto id = proposed_path[i].index;
+            auto center = proposed_path[i].center;
+            auto r = curvanature->read(id);
+            auto p_prop = proposed_path[i].point;
+            auto p_proj = center + r * normalize(p_prop - center);
+            //proposed_path[i].point = p_proj;
+        };
         $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
             //luisa::compute::device_log("newton {}", proposed_path[0].point);
             
@@ -1881,8 +1988,58 @@ public:
             Float3 target = generate_ray->origin() + t * generate_ray->direction();
             $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
                 
-                //luisa::compute::device_log("newton {}, {}", proposed_path[1].point, generate_ray->origin());
+                luisa::compute::device_log("newton {}, {}", proposed_path[size -1].point, generate_ray->origin());
+                luisa::compute::device_log("newton_target {},{}", target, start);
+            };
+
+            Float check_d = length(generate_ray->origin() - proposed_path[size - 1].point);
+            Float angle_d;
+            $if (check_d > length_threshold) {
+                //success = false;
+            }
+            $else {
+                Float3 target_angle = normalize(emit - proposed_path[size - 1].point);
+                angle_d = 1.f - dot(normalize(generate_ray->direction()), target_angle);
+                $if (angle_d > angle_threshold) {
+                    //success = false;
+                };
+            };
+            
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+
+                luisa::compute::device_log("difference {}, {}", check_d, angle_d);
                 //luisa::compute::device_log("newton_target {},{}", target, start);
+            };
+
+        };
+        
+
+
+        return success;
+    }
+
+    Bool last_check(const Float3 start, const Float3 emit, Var<ChainVerts[20]> proposed_path, const Int size) const {
+
+        Float3 first_point = proposed_path[0].point;
+        Float3 direction_to_first = first_point - start;
+
+        Var<Ray> proposed_ray = make_ray(start, direction_to_first);
+        Var<Ray> generate_ray;
+
+        Bool success = TraceLences(proposed_ray, &generate_ray);
+
+        $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+            //luisa::compute::device_log("newton {}", proposed_path[0].point);
+        };
+
+        $if (success) {
+            Float distance = emit.z - generate_ray->origin().z;
+            Float t = distance / generate_ray->direction().z;
+            Float3 target = generate_ray->origin() + t * generate_ray->direction();
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+
+                //luisa::compute::device_log("newton {}, {}", proposed_path[size - 1].point, generate_ray->origin());
+                luisa::compute::device_log("newton_target {},{}", target, start);
             };
 
             Float check_d = length(generate_ray->origin() - proposed_path[size - 1].point);
@@ -1897,16 +2054,13 @@ public:
                     success = false;
                 };
             };
-            
+
             $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
 
                 luisa::compute::device_log("difference {}, {}", check_d, angle_d);
-                //luisa::compute::device_log("newton_target {},{}", target, start);
+                //luisa::compute::device_log("newton_size {}", size);
             };
-
         };
-        
-
 
         return success;
     }
@@ -1935,6 +2089,12 @@ public:
             };
         };
 
+        $if (curvanature->read(0) != 0.f) {
+            size = size + 1;
+        };
+        $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+            luisa::compute::device_log("size {}", size);
+        };
 
         Bool use_half_vector = true;
         Bool needs_step_update = true;
@@ -1982,6 +2142,13 @@ public:
             };
 
             $if (converged) {
+                $if (last_check(start, emit, path, size)) {
+                    success = true;
+                }
+                $else {
+                    success = false;
+
+                };
                 success = true;
                 $break;
             };
@@ -2019,12 +2186,15 @@ public:
             };
 
             $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
-                //luisa::compute::device_log("convege_p {}", max_C_p);
+                luisa::compute::device_log("convege_p {}", max_C_p);
                 //luisa::compute::device_log("beta {}", beta);
                 
             };
 
-            project_success = (max_C > max_C_p);
+            $if (project_success) {
+                project_success = (max_C > max_C_p);
+            };
+            
 
 
             $if (!project_success) {
@@ -2215,7 +2385,8 @@ public:
 
 
         Bool trace;
-        $if (elem.sign == 0.f) {
+        auto bunki = elem.sign ;
+        $if (bunki == 0) {
             $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
                 luisa::compute::device_log("LensTrace");
             };
@@ -2230,7 +2401,7 @@ public:
                 element->write(coord1D, elem);
             };
         }
-        $elif (elem.sign == 1.f) {
+        $elif (bunki == 1) {
             $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
                 luisa::compute::device_log("Manifold Exploration start");
             };
