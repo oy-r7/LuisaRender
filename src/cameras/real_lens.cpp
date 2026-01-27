@@ -716,7 +716,7 @@ public:
                 //luisa::compute::device_log("endloop {}", i);
             };
             $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
-                luisa::compute::device_log("check_ray= {},{}", ray->origin(), ray->direction());
+                //luisa::compute::device_log("check_ray= {},{}", ray->origin(), ray->direction());
             };
 
         };
@@ -866,6 +866,137 @@ public:
         return trace;
     }
 
+    Bool TraceFrontLencesFromScene(const Var<Ray> &rCamera, Var<Ray> *rOut, const Bool ignore) const {
+
+        const Int lc = node<RealLensCamera>()->lens_count();
+        Float elementZ = LensFrontZ(lc);
+        Var<Ray> ray = rCamera;
+        Int hanbetsu = 0;
+        Int misspoint = 0;
+        Var<bool> trace = true;
+        $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+            //luisa::compute::device_log("rCamera {}, {}", ray->origin(), ray->direction());
+        };
+
+        $for (i, lc) {
+            Int index = i;
+            Float zCenter = 0.f;
+
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                //luisa::compute::device_log("start_loop_function {}", i);
+                //luisa::compute::device_log("real_element = {}, {}, {}, {}", curvanature->read(index), thick->read(index), refraction->read(index), radius->read(index));
+                //luisa::compute::device_log("real_loop = {}, {}, {}", i, ray->direction(), hanbetsu);
+                //luisa::compute::device_log("real_pro = {},{},{}", data.mode, data.pixel_offset, data.projected_pixel_size);
+            };
+
+            $if (ignore) {
+                $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                    //luisa::compute::device_log("ignore");
+                };
+                $if (refraction->read(index) == 0.f) {
+                    elementZ += thick->read(index);
+                    $continue;
+                };
+            };
+
+            //compute intersection
+            Float t;
+            Float3 normal;
+            Var<bool> isPlane = (curvanature->read(index) == 0.f);
+            $if (isPlane) {
+                t = (elementZ - ray->origin().z) / ray->direction().z;
+                normal = make_float3(0.f, 0.f, 1.f);
+            }
+            $else {
+                Float radius = curvanature->read(index);
+                zCenter = elementZ + curvanature->read(index);
+
+                $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                    //luisa::compute::device_log("intersect {}", !IntersectSphericalElement(radius, zCenter, ray, &t, &normal));
+                };
+                $if (!IntersectSphericalElement(radius, zCenter, ray, &t, &normal, true)) {
+                    hanbetsu = 1;
+                    misspoint = 1;
+                    $break;
+                };
+            };
+
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                //luisa::compute::device_log("real_loop = {}, {}, {}", index, ray->origin(), isStop);
+            };
+
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                //luisa::compute::device_log("real_next");
+            };
+            //test intersection
+            Float3 phit = ray->origin() + t * ray->direction();
+            Float r2 = phit.x * phit.x + phit.y * phit.y;
+
+            $if (r2 > radius->read(index) * radius->read(index)) {
+                hanbetsu = 1;
+                misspoint = 2;
+                $break;
+            };
+
+            normal = normalize(phit - make_float3(0.f, 0.f, zCenter));
+
+            Float3 new_origin = phit;
+            //update ray
+
+            Float3 w;
+            $if (!(refraction->read(index) == 0.f)) {
+                Float etaT = refraction->read(index);
+                Float etaI = 1.f;
+                $if (index > 0) {
+                    $if (refraction->read(index - 1) != 0.f) {
+                        etaI = refraction->read(index - 1);
+                    };
+                };
+
+                $if (!Refract(normalize(-ray->direction()), &normal, etaI / etaT, &w)) {
+                    hanbetsu = 1;
+                    misspoint = 3;
+                    $break;
+                };
+
+                $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                    //luisa::compute::device_log("real_w = {}", w);
+                };
+                w = normalize(w);
+                ray = make_ray(new_origin, make_float3(w.xy(), w.z));
+            }
+            $else {
+                $break;
+            };
+
+            elementZ += thick->read(index);
+            /* */
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                //luisa::compute::device_log("next_ray {}, {}", ray->origin(), ray->direction());
+                //luisa::compute::device_log("endloop {}", i);
+            };
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                //luisa::compute::device_log("check_ray= {},{}", ray->origin(), ray->direction());
+            };
+        };
+
+        $if (hanbetsu == 1) {
+            //ray = make_ray(make_float3(0.f), make_float3(0.f, 0.f, 0.f));
+            trace = false;
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy()) & ignore) {
+                //luisa::compute::device_log("false_from_scene = {}, {},{}", ray->origin(), ray->direction(), misspoint);
+            };
+        }
+        $else {
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy()) & ignore) {
+                //luisa::compute::device_log("true_from_scene = {}, {}", ray->origin(), ray->direction());
+            };
+            *rOut = make_ray(ray->origin(), make_float3(ray->direction().xy(), ray->direction().z));
+        };
+
+        return trace;
+    }
+
     Bool TraceLences(const Var<Ray> &rCamera, Var<Ray> *rOut, Var<ChainVerts[CHAIN]> &intersect) const {
         Float elementZ = -0.f;
         const Int lc = node<RealLensCamera>()->lens_count();
@@ -895,7 +1026,7 @@ public:
             #endif
 
             $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
-                luisa::compute::device_log("check_ray= {},{},{},{}", ray->origin(), ray->direction(), index, num);
+                //luisa::compute::device_log("check_ray= {},{},{},{}", ray->origin(), ray->direction(), index, num);
             };
 
             elementZ -= thick->read(index);
@@ -1178,7 +1309,7 @@ public:
         *pz = (rO->origin() + rO->direction() * tp).z;
         $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
             //luisa::compute::device_log("o, d = {},{}", rO->origin(), rO->direction());
-            //luisa::compute::device_log("pz, fz = {},{}", (rO->origin() + rO->direction() * tp).z, (rO->origin() + rO->direction() * tf).z);
+            luisa::compute::device_log("pz, fz = {},{}", (rO->origin() + rO->direction() * tp).z, (rO->origin() + rO->direction() * tf).z);
         };
     }
 
@@ -1222,6 +1353,104 @@ public:
         ComputeCardinalPoints(rFilm, rScene, &pz[1], &fz[1]);
     }
 
+    void ComputeThickLensApproximation(Float2 &pz, Float2 &fz, Float3 &fp, Float3 &epc, Float &per) const {
+        Float two = 2.f;
+        Float x = 0.024f * .1f;
+
+        // x = 2.f / luisa::sqrt(3);
+        const auto lc = node<RealLensCamera>()->lens_count();
+
+        Float3 scene_o = make_float3(x, 0.f, LensFrontZ(lc) - 1.f);
+        Float3 scene_d = make_float3(0.f, 0.f, 1.f);
+        // scene_d = normalize(make_float3(-1.f, 0.f, luisa::sqrt(3)));
+        Var<Ray> rScene = make_ray(scene_o, scene_d);
+
+        $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+            luisa::compute::device_log("from_scene = {},{}", rScene->origin(), rScene->direction());
+        };
+
+        Var<Ray> rFilm;
+        TraceLencesFromScene(rScene, &rFilm, true);
+        ComputeCardinalPoints(rScene, rFilm, &pz[0], &fz[0]);
+
+        Float3 film_o = make_float3(x, 0.f, 0.f);
+        Float3 film_d = make_float3(0.f, 0.f, -1.f);
+        // film_d = normalize(make_float3(-1.f, 0.f, -luisa::sqrt(3)));
+
+        rFilm = make_ray(film_o, film_d);
+
+        $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+            luisa::compute::device_log("from_firm = {},{}", rFilm->origin(), rFilm->direction());
+        };
+
+        TraceLencesFromFilm(rFilm, &rScene);
+        ComputeCardinalPoints(rFilm, rScene, &pz[1], &fz[1]);
+
+        auto coord = dispatch_id().xy();
+        auto coord1D = coord.y * RESOLUTION + coord.x;
+
+        Float eps = 1e-4f;
+
+        $if(refraction->read(0) == 0.f) {
+            epc = make_float3(0.f, 0.f, LensFrontZ(lc));
+        }
+        $else {
+            Var<Ray> rA = make_ray(make_float3(0.f, 0.f, LensFrontZ(lc) - 1.f), make_float3(0.f, 0.f, 1.f));
+            Var<Ray> outA;
+            TraceFrontLencesFromScene(rA, &outA, false);
+
+            Var<Ray> rB = make_ray(make_float3(eps, 0.f, LensFrontZ(lc) - 1.f), make_float3(0.f, 0.f, 1.f));
+            Var<Ray> outB;
+            TraceFrontLencesFromScene(rB, &outB, false);
+
+            Float sA = outA->direction().x / outA->direction().z;
+            Float sB = outB->direction().x / outB->direction().z;
+
+            // x(z) = x0 + s*(z - z0)
+            // 2本のレイが同じ z で持つ x の差は
+            // Δx(z) = (xB0 - xA0) + (sB - sA)*(z - z0)
+            // 光軸上の pupilCenter は Δx(z)=0 となる z で近似できる（近軸で有効）
+            Float dx0 = outB->origin().x - outA->origin().x;
+            Float ds = sB - sA;
+
+            $if (abs(ds) < 1e-8f) {
+                ; /* ほぼ平行 → 計算不能/無限遠 */
+            };
+
+            Float z0 = outA->origin().z;// 同じzStartを使ったならどちらでもよい
+            Float pupilZ = z0 - dx0 / ds;// ← ここで rA を使っている
+            epc = make_float3(0.f, 0.f, pupilZ);
+
+
+            Float tA = (LensFrontZ(lc) - outA->origin().z) / outA->direction().z;
+            Float tB = (LensFrontZ(lc) - outB->origin().z) / outB->direction().z;
+            Float3 outAtA = outA->origin() + tA * outA->direction();
+            Float xA_stop = outAtA.x;// ほぼ0
+            Float3 outBtB = outB->origin() + tB * outB->direction();
+            Float xB_stop = outBtB.x;
+
+            Float m = (xB_stop - xA_stop) / eps;// stop面での倍率（近軸）
+            per = abs(m);
+        };
+        
+
+
+
+        film_o = fp;
+        film_d = epc - fp;
+        /*
+        rFilm = make_ray(film_o, film_d);
+        Var<Ray> rK;
+
+        TraceLencesFromFilm(rFilm, &rScene);
+        Float tHp = (pz[0] - rScene->origin().z) / rScene->direction().z;
+        fp = rScene->origin() + tHp * rScene->direction();
+        $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+            luisa::compute::device_log("camera_epc = {}, {}", pz[0], epc);
+        };*/
+
+    }
+
     Float FocusThickLens(Float focusDistance) const {
         Float2 pz = make_float2(0.f);
         Float2 fz = make_float2(0.f);
@@ -1236,17 +1465,20 @@ public:
         return delta;
     }
 
-    Float sensordistance(Float &fl) const {
+    Float get_param(Float &fl, Float3 &fp, Float3 &epc, Float &per) const {
         Float2 pz = make_float2(0.f);
         Float2 fz = make_float2(0.f);
-        ComputeThickLensApproximation(pz, fz);
+        ComputeThickLensApproximation(pz, fz, fp, epc, per);
         $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
             //luisa::compute::device_log("pz, fz = {},{}", pz, fz);
         };
         Float inv_f = 1.f / (fz[0] - pz[0]) - 1.f / (fz[1] - pz[1]);
         fl = abs(fz[0] - pz[0]);
 
-        return abs(pz[0]);
+        Float filmZ = 0.f;
+        Float sd = abs(filmZ - pz[1]);
+        fp = make_float3(0.f, 0.f, pz[0]);
+        return sd;
     }
 
     Float focusdistance() const {
@@ -2192,7 +2424,7 @@ public:
             };
 
             $if (project_success) {
-                project_success = (max_C > max_C_p);
+                project_success = (max_C * 1.1f > max_C_p);
             };
             
 
@@ -2311,7 +2543,7 @@ public:
         ArrayFloat3<20> intersect_v;
         float3 ver[20];
         Float fl;
-        Float sd = sensordistance(fl);
+        //Float sd = sensordistance(fl);
         auto coord = dispatch_id().xy();
         auto coord1D = coord.y * RESOLUTION + coord.x;
 
@@ -2377,7 +2609,7 @@ public:
         auto first_ray = make_ray(coordScene, scene_d);
 
         //test
-        first_ray = make_ray(coordScene, test_d);
+        //first_ray = make_ray(coordScene, test_d);
         //real system
         $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
             luisa::compute::device_log("coordScene {}", coordScene);
@@ -2486,7 +2718,7 @@ public:
 
         Float cosTheta = normalize(first_ray->direction()).z;
         Float cos4Theta = (cosTheta * cosTheta) * (cosTheta * cosTheta);
-        //weight = weight * cos4Theta;
+        weight = weight * cos4Theta;
 
 
         /* Float3 start = make_float3(0.f);
@@ -2510,12 +2742,75 @@ public:
         return std::make_pair(std::move(ray), weight);
     }
 
-    [[nodiscard]] Bool _get_camera_param(Float &aper, Float &fl, Float &fd, Float &sd) const noexcept override { //aper = entrance pupil, fl = EFL, fd = compute, sd = pz
+    [[nodiscard]] Bool _get_camera_param(Float &aper, Float &fl, Float &fd, Float &sd, Float3 &fp) const noexcept override { //aper = entrance pupil, fl = EFL, fd = compute, sd = pz
         Bool get_p = true;
-        sd = sensordistance(fl);
+
+        auto data = _device_data->read(0u);
+        
+        auto sceneX = .024f;
+        auto sceneY = .024f;
+        Float2 resolution = data.resolution;
+
+        Float coordX = (fp.x - data.pixel_offset.x) * sceneX / resolution.x;
+        Float coordY = (fp.y - data.pixel_offset.y) * sceneY / resolution.y;
+        fp = make_float3(coordX, coordY, 0.f);
+        Float3 epc;
+        Float pt;
+        sd = get_param(fl, fp, epc, pt);
         aper = get_aper() * 2.f;
-        fd = abs (1.f / (1.f / fl - 1.f / sd));
+        fd =  (1.f / (1.f / fl - 1.f / sd));
         //fd = focusdistance();
+        fp = fp + fd * make_float3(0.f, 0.f, -1.f);
+
+        return get_p;
+    }
+
+     [[nodiscard]] Bool _get_camera_param(Float &aper, Float &fl, Float &fd, Float &sd, Float3 &fp, Float3 &sp, Float3 &epc) const noexcept override {//aper = entrance pupil, fl = EFL, fd = compute, sd = pz
+        Bool get_p = true;
+
+        auto data = _device_data->read(0u);
+
+        auto sceneX = .024f;
+        auto sceneY = .024f;
+        Float2 resolution = data.resolution;
+
+        Float coordX = (fp.x - data.pixel_offset.x) * sceneX / resolution.x;
+        Float coordY = (fp.y - data.pixel_offset.y) * sceneY / resolution.y;
+        fp = make_float3(coordX, coordY, 0.f);
+        sp = make_float3(coordX, coordY, 0.f);
+        Float percentage;
+        sd = get_param(fl, fp, epc, percentage);
+
+        $if (refraction->read(0) == 0.f) {
+           aper = radius->read(0) * 2.f;
+        }
+        $else {
+           aper = radius->read(0) * 2.f * percentage;
+        };
+        
+        //aper = get_aper() * 2.f;
+
+
+        fd = (1.f / (1.f / fl - 1.f / sd));
+        //fd = focusdistance();
+
+        Float3 n = make_float3(0.f, 0.f, -1.f);
+        Float3 fp0 = fp + n * fd;
+
+        Float3 dir = normalize(epc - sp);
+        Var<Ray> rFilm = make_ray(sp, dir);
+        Var<Ray> rScene;
+        Bool han = TraceLences(rFilm, &rScene);
+        $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+            luisa::compute::device_log("test_fp = {}", han);
+        };
+        Float denom = dot(rScene->direction(), n);
+
+        Float t = dot(fp0 - rScene->origin(), n) / denom;
+        fp = rScene->origin() + t * rScene->direction();
+
+        //fp = fp + fd * make_float3(0.f, 0.f, -1.f);
+
         return get_p;
     }
 
