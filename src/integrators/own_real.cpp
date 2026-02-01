@@ -19,7 +19,7 @@
 //constexpr auto X = 248;
 //constexpr auto Y = -453;
 
-constexpr auto X = 20;
+constexpr auto X = 32;
 constexpr auto Y = 0;
 constexpr auto upright = 61176;
 constexpr auto midtower = 384758;
@@ -1303,8 +1303,19 @@ private:
         Float3 startPoint;
         Float3 EntrancePupilCenter;
         Bool get_c_param = camera->get_camera_param(pixel_id, u_filter, aperture, fl, fd, sensorDistance, focusPoint, startPoint, EntrancePupilCenter);
-        aperture = fl / aperture;
         
+        $if (fd < 0) {
+            focusPoint = -focusPoint;
+        };
+        fd = abs(fd);
+
+        $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+           
+            Float t_fn = fl / aperture;
+            luisa::compute::device_log("camera_p = {},{},{},{},{},{},{},{}", aperture, fl, fd, sensorDistance, t_fn, focusPoint, startPoint, EntrancePupilCenter);
+        };
+        
+        aperture = fl / aperture;
         std::optional<luisa::compute::Int> selectedComponent{};
         std::optional<luisa::compute::Float3> pdfRecords{};
         pdfRecords.emplace(make_float3(0.f));
@@ -1338,8 +1349,9 @@ private:
         auto coord = dispatch_id().xy();
         auto coord1D = coord.y * size.x + coord.x;
         
-        auto j = recordCB->read(coord1D);
-        $if(true) {
+       auto j = recordCB->read(coord1D);
+        
+     /*    $if(j % 2== 0) {
             auto [me_ray, me_pixel, me_weight] = camera->get_ray_Manifold(pixel_id, u_filter, emit, 0.f);
             auto [cam_ray, cam_pixel, cam_weight] = camera->generate_ray(pixel_id, time, u_filter, u_lens);
             camera_ray = cam_ray;
@@ -1348,33 +1360,20 @@ private:
 
         }
         $else {
-            Float3 emit = make_float3(0.f, 0.f, -5.f);
+           Float3 emit = make_float3(0.f, 0.f, -5.f);
             auto [_, __, ___] = camera->get_ray_Manifold(pixel_id, u_filter, emit, 1.f);
             auto [manifold_ray, manifold_pixel, manifold_weight] = camera->generate_ray(pixel_id, time, u_filter, u_lens);
             camera_ray = manifold_ray;
             camera_pixel = manifold_pixel;
             camera_weight = manifold_weight;
-        };
+        }; 
        
-
+*/
         
         
         Bool positionrec = false;
         
-         $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
-             Bool t_p;
-             Float t_aper;
-             Float t_fl;
-             Float t_fd;
-             Float t_sd;
-             Float3 t_fp;
-             Float3 t_sp;
-             Float3 t_epc;
-             t_p = camera->get_camera_param(pixel_id, u_filter, t_aper, t_fl, t_fd, t_sd, t_fp, t_sp, t_epc);
-             Float t_fn = t_fl / t_aper;
-             luisa::compute::device_log("camera_p = {},{},{},{},{},{},{},{}", t_aper, t_fl, t_fd, t_sd, t_fn, t_fp, t_sp, t_epc);
-            
-        };
+        
 
 
         //records = _device.create_buffer<DoFRecord>(SCREEN_SPACE_RECORD_RES * SCREEN_SPACE_RECORD_RES);
@@ -1487,10 +1486,11 @@ private:
         Float theta_pix = pixel_half_diag_mm / fl_mm;// small-angle approx
 
         // blur radius in mm
-        Float blur_radius_mm = max(0.f, 8.28f) * mm_per_px;
+        Float blur_radius_mm = max(0.f, 28.28f) * mm_per_px;
         Float theta_blur = blur_radius_mm / fl_mm;
 
-        Float theta0 = theta_pupil; //+theta_pix + theta_blur;
+        Float theta0 = theta_pupil + theta_pix + theta_blur;
+            //+theta_pix + theta_blur;
         
         //theta0 = atan(lensRadius / fl) 
 
@@ -1648,6 +1648,7 @@ private:
 
 
         //usedG3ds = 0.f;
+
         Float pdf = 0.f;
         const Float uniformPdf =   1.f / (lensRadius * lensRadius * constants::pi);
         Float powerh = 0.f;
@@ -1685,8 +1686,9 @@ private:
                 g3ds.gaussian[usedG3ds + i].sigma = 1.f;
                 g3ds.weights[usedG3ds + i] = 0.f;
             };
-            g3ds.construct_directional(focusPoint);
-           
+
+            //g3ds.construct_directional(focusPoint);
+            g3ds.construct_directional(origin);
 
             $for (i, COMPONENT_COUNT) {
                 $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
@@ -1730,6 +1732,7 @@ private:
 
            Int loop = 0.f;
             //validpdf->atomic(coord1D).y.fetch_add(1.f);
+           
             $while (true) {
                 //validpdf->atomic(coord1D).x.fetch_add(1.f);
                 Bool sampleG3d = sampler()->generate_1d() < selectionProbability;
@@ -1750,7 +1753,11 @@ private:
 
                     g3ds.sample_directional(ran, ransecond, sampledDir, pdf_g3d, select);
                    
+                    emit = g3ds.sample_g3d(ran);
 
+                    auto [_, __, ___] = camera->get_ray_Manifold(pixel_id, u_filter, emit, 1.f);
+                    auto [manifold_ray, manifold_pixel, manifold_weight] = camera->generate_ray(pixel_id, time, u_filter, u_lens);
+                    
                     
                     //Float3 samdir = normalize(samg3d - focusPoint);
                     
@@ -1797,7 +1804,7 @@ private:
                     
 
 
-                    $if (pointDistance  <= (lensRadius  )) {
+                    $if (manifold_weight != 0.f ) {
                         //experiment
                         gcenter = g3ds.gaussian[select].mu;
                         gscale = g3ds.gaussian[select].sigma;
@@ -1811,14 +1818,17 @@ private:
                         $if (*selectedComponent > -1) {
                             *selectedComponent = g3dIds[*selectedComponent];
                         };
-                        //weight = uniformPdf / pdf;
+                        
                         g_ray = make_ray(origin, dir);
+                        g_ray = manifold_ray;
                         auto cheint = pipeline().geometry()->intersect(g_ray);
                         
                          
                         //auto valid = validpdf->read(coord1D);
                         //auto vp = valid.x / valid.y;
                         weight = uniformPdf / (pdf );
+                        weight = manifold_weight * uniformPdf / (pdf);
+
                         //weight = pdfRecords->y;
                         $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
                             luisa::compute::device_log("CQC");
@@ -1839,6 +1849,13 @@ private:
                     {
                         pdf = lerp(uniformPdf, pdf, selectionProbability);
                         weightacc += uniformPdf / pdf;
+                        //auto u_filter = sampler()->generate_pixel_2d();
+                        //auto u_lens = camera->node()->requires_lens_sampling() ? sampler()->generate_2d() : make_float2(.5f);
+                        //auto [me_ray, me_pixel, me_weight] = camera->get_ray_Manifold(pixel_id, u_filter, emit, 0.f);
+                        //auto [cam_ray, cam_pixel, cam_weight] = camera->generate_ray(pixel_id, time, u_filter, u_lens);
+                        $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                            //luisa::compute::device_log("renew {}", cam_weight);
+                        };
                     };
                     tryTimes += 1.f; 
                     
@@ -1853,6 +1870,10 @@ private:
 
                     origin = camera_ray->origin();
                     dir = camera_ray->direction();
+
+                    auto [me_ray, me_pixel, me_weight] = camera->get_ray_Manifold(pixel_id, u_filter, emit, 0.f);
+                    auto [cam_ray, cam_pixel, cam_weight] = camera->generate_ray(pixel_id, time, u_filter, u_lens);
+                   
 
                     Int usedId = -1;
                     auto pdf_g3d = G3DPdf(dir, g3ds, *selectedComponent);
@@ -1875,7 +1896,7 @@ private:
                     };
                     //experiment
                     //weight = camera_weight;
-                    g_ray = make_ray(origin, dir);
+                    g_ray = cam_ray;
                     //weightacc = 0.f;
                      
                      //auto valid = validpdf->read(coord1D);
@@ -1915,6 +1936,12 @@ private:
             //dir = normalize(focusPoint - origin);
             //g_ray = make_ray(origin, dir);
             
+             auto [me_ray, me_pixel, me_weight] = camera->get_ray_Manifold(pixel_id, u_filter, emit, 0.f);
+             auto [cam_ray, cam_pixel, cam_weight] = camera->generate_ray(pixel_id, time, u_filter, u_lens);
+             camera_ray = cam_ray;
+             camera_pixel = cam_pixel;
+             camera_weight = cam_weight;
+
             g_ray = camera_ray;
              
 
