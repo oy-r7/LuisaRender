@@ -19,7 +19,7 @@
 //constexpr auto X = 248;
 //constexpr auto Y = -453;
 
-constexpr auto X = 32;
+constexpr auto X = 0;
 constexpr auto Y = 0;
 constexpr auto upright = 61176;
 constexpr auto midtower = 384758;
@@ -442,7 +442,7 @@ unsigned dist_res = 128u;
 
 constexpr unsigned BUFFER_ITER = 64u;
 constexpr unsigned COMPONENT_COUNT = 16u;
-constexpr float WIDTH_SCALE = 0.05f;
+constexpr float WIDTH_SCALE = 0.005f;
 constexpr unsigned POLYNOMIAL_DEGREE = 2u;
 constexpr unsigned POLYNOMIAL_PARAMS_PER_OUTPUT(unsigned dim) {
     //unsigned params = 0; // Start without the constant term (degree 0)
@@ -1486,7 +1486,7 @@ private:
         Float theta_pix = pixel_half_diag_mm / fl_mm;// small-angle approx
 
         // blur radius in mm
-        Float blur_radius_mm = max(0.f, 28.28f) * mm_per_px;
+        Float blur_radius_mm = max(0.f, 48.28f) * mm_per_px;
         Float theta_blur = blur_radius_mm / fl_mm;
 
         Float theta0 = theta_pupil + theta_pix + theta_blur;
@@ -1650,7 +1650,7 @@ private:
         //usedG3ds = 0.f;
 
         Float pdf = 0.f;
-        const Float uniformPdf =   1.f / (lensRadius * lensRadius * constants::pi);
+        const Float uniformPdf =   1.f / (0.015f * 0.015f * constants::pi);
         Float powerh = 0.f;
         Float z = 0;
         Float tryTimes = 1.f;
@@ -1777,7 +1777,8 @@ private:
 
                     pdf_g3d += pp;
 
-                    auto cosTheta = dot(sampledDir, direction);
+                    //auto cosTheta = dot(sampledDir, direction);
+                    auto cosTheta = dot(manifold_ray->direction(), direction);
                     $if (cosTheta < 0.f) {
                         cosTheta *= -1.f;
                         sampledDir *= -1.f;
@@ -1794,7 +1795,7 @@ private:
                     
                     $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
                         //luisa::compute::device_log("offset = {}, {}, {}", offsetVector.x, offsetVector.y, offsetVector.z);
-                        luisa::compute::device_log("origin = {}, {}, {}", origin, focusPoint, sampledDir);
+                        luisa::compute::device_log("origin = {}, {}", manifold_ray->origin(), manifold_ray->direction());
                         luisa::compute::device_log("pd = {}, {}", pointDistance, lensRadius);
                         
 
@@ -1819,7 +1820,7 @@ private:
                             *selectedComponent = g3dIds[*selectedComponent];
                         };
                         
-                        g_ray = make_ray(origin, dir);
+                        //g_ray = make_ray(origin, dir);
                         g_ray = manifold_ray;
                         auto cheint = pipeline().geometry()->intersect(g_ray);
                         
@@ -1868,12 +1869,12 @@ private:
                     origin = node<OwnkernelPathTracing>()->position() + lensRadius * horizontal * c.x + lensRadius * vertical * c.y;
                     dir = normalize(focusPoint - origin);
 
-                    origin = camera_ray->origin();
-                    dir = camera_ray->direction();
+                    
 
                     auto [me_ray, me_pixel, me_weight] = camera->get_ray_Manifold(pixel_id, u_filter, emit, 0.f);
                     auto [cam_ray, cam_pixel, cam_weight] = camera->generate_ray(pixel_id, time, u_filter, u_lens);
-                   
+                    origin = cam_ray->origin();
+                    dir = cam_ray->direction();
 
                     Int usedId = -1;
                     auto pdf_g3d = G3DPdf(dir, g3ds, *selectedComponent);
@@ -1901,7 +1902,7 @@ private:
                      
                      //auto valid = validpdf->read(coord1D);
                      //auto vp = valid.x / valid.y;
-                     weight =  uniformPdf  / pdf;
+                     weight =  cam_weight * uniformPdf  / pdf;
                     //weight = camera_weight;
                     //tryTimes = 1.f;
                      //weight = pdfRecords->x;
@@ -1977,7 +1978,7 @@ private:
 
         lensPdf.emplace(1.f / weight);
        
-        
+        //weight = 1.f;
         auto spectrum = pipeline().spectrum();
         auto swl = spectrum->sample(spectrum->node()->is_fixed() ? 0.f : sampler()->generate_1d());
         //auto g_ray;
@@ -2146,7 +2147,7 @@ private:
 
 
         $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
-            //luisa::compute::device_log("beta = {}", beta);
+            luisa::compute::device_log("weight = {}", weight);
             luisa::compute::device_log("energy/valid = {} / {}", energy, g_first->valid());
         };
 

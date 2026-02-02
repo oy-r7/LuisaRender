@@ -1095,10 +1095,10 @@ public:
 
                 num = num + 1;
             };
-            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+          /*   $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
                 luisa::compute::device_log("seed_point= {}", new_origin);
             };
-            /* */
+            */
         };
 
         $if (hanbetsu == 1) {
@@ -2650,6 +2650,9 @@ public:
 
             path.point = gene_center + abs(curvanature->read(pro_idx)) * normalize(path.point - gene_center);
             vertex->write(coord1D + k, path);
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                luisa::compute::device_log("newton_point= {}", path.point);
+            };
         };
 
         auto first_v = vertex->read(coord1D);
@@ -2661,14 +2664,17 @@ public:
 
         Bool success = TraceLences(proposed_ray, &generate_ray);
 
-         $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
-            luisa::compute::device_log("check {},{}", generate_ray->origin(), vertex->read(coord1D + size - 1).point);
-        };
+         
         $if (success) {
-            Float distance = emit.z - generate_ray->origin().z;
+            Float distance = -4.95f - generate_ray->origin().z;
             Float t = distance / generate_ray->direction().z;
             Float3 target = generate_ray->origin() + t * generate_ray->direction();
             
+
+            $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                luisa::compute::device_log("check {}", target);
+            };
+
             auto last_v = vertex->read(coord1D + size - 1);
             Float check_d = length(generate_ray->origin() - last_v.point);
             Float angle_d;
@@ -2680,6 +2686,11 @@ public:
                 angle_d = 1.f - dot(normalize(generate_ray->direction()), target_angle);
                 $if (angle_d > angle_threshold) {
                     success = false;
+                }
+                $else {
+                    $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                        luisa::compute::device_log("check {},{}", last_v.point, target_angle);
+                    };
                 };
             };
 
@@ -2771,6 +2782,7 @@ public:
                
                 $if (last_check(start, emit, size)) {
                     success = true;
+
                 }
                 $else {
                     success = false;
@@ -3027,7 +3039,7 @@ public:
             }
             $else {
                 Float3 start = elem.first;
-                Float3 emit = elem.emit;
+                emit = elem.emit;
                 trace = newton_solver(start, emit);
             };
             
@@ -3038,9 +3050,13 @@ public:
                 weight = 0.f;
             }
             $else {
-                auto path = vertex->read(coord1D + lc - 2);
+                auto coord1D_chain = (coord.y * RESOLUTION + coord.x) * CHAIN;
+                auto path = vertex->read(coord1D_chain + lc - 2);
                 Float3 ray_o = path.point;
-                Float3 ray_d = emit - ray_o;
+                Float3 ray_d = normalize(emit - ray_o);
+                $if (luisa::compute::all((luisa::compute::dispatch_size().xy() / 2u) + make_uint2(X, Y) == luisa::compute::dispatch_id().xy())) {
+                    luisa::compute::device_log("check_ray {},{}", ray_o, ray_d);
+                };
                 ray = make_ray(ray_o, ray_d);
                 weight = 1.f;
             };
